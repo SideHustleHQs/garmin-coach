@@ -1,0 +1,127 @@
+# tests/test_api.py
+import json
+import tempfile
+from pathlib import Path
+import sys
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import pytest
+from fastapi.testclient import TestClient
+
+from db import get_conn, init_db
+from ingest import (
+    ingest_activities, ingest_training_readiness,
+    ingest_vo2max_from_training_status, ingest_daily_stats,
+    ingest_body_battery, upsert_athlete,
+)
+
+# Patch DB_PATH before importing app
+import db as db_module
+_tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+TEST_DB = Path(_tmp.name)
+_tmp.close()
+db_module.DB_PATH = TEST_DB
+
+from api.main import app  # import AFTER patching
+
+@pytest.fixture(autouse=True)
+def setup_db():
+    init_db(TEST_DB)
+    conn = get_conn(TEST_DB)
+    upsert_athlete(conn, "vriendin", "Vriendin", ["GoalBanner", "HeroRow"])
+    ingest_activities(conn, "vriendin", [
+        {
+            "activityId": 1001,
+            "activityName": "Run A",
+            "startTimeLocal": "2026-06-20 08:00:00",
+            "activityType": {"typeKey": "running"},
+            "distance": 8000.0,
+            "duration": 2400.0,
+            "averageSpeed": 3.33,
+            "averageHR": 155.0,
+            "maxHR": 170.0,
+            "hrTimeInZone_1": 120.0, "hrTimeInZone_2": 600.0,
+            "hrTimeInZone_3": 1200.0, "hrTimeInZone_4": 400.0, "hrTimeInZone_5": 80.0,
+            "aerobicTrainingEffect": 3.5, "anaerobicTrainingEffect": 0.2,
+            "averageRunningCadenceInStepsPerMinute": 168.0,
+        }
+    ])
+    ingest_training_readiness(conn, "vriendin", {
+        "2026-06-20": [{"calendarDate": "2026-06-20", "score": 78, "level": "HIGH", "feedbackShort": "WELL_RECOVERED"}]
+    })
+    ingest_vo2max_from_training_status(conn, "vriendin", {
+        "2026-06-20": {"mostRecentVO2Max": {"generic": {"calendarDate": "2026-06-16", "vo2MaxValue": 49.0}}}
+    })
+    ingest_daily_stats(conn, "vriendin", {
+        "2026-06-20": {"totalSteps": 9000, "activeKilocalories": 500.0, "totalKilocalories": 2100.0}
+    })
+    ingest_body_battery(conn, "vriendin", [
+        {"date": "2026-06-20", "charged": 70.0, "drained": 35.0}
+    ])
+    yield
+    conn.executescript("""
+        DELETE FROM activities; DELETE FROM training_readiness;
+        DELETE FROM vo2max; DELETE FROM daily_stats; DELETE FROM body_battery;
+        DELETE FROM athletes;
+    """)
+    conn.commit()
+
+
+client = TestClient(app)
+
+
+def test_get_athletes():
+    r = client.get("/api/athletes")
+    assert r.status_code == 200
+    data = r.json()
+    assert any(a["id"] == "vriendin" for a in data)
+
+
+def test_get_hero():
+    r = client.get("/api/athlete/vriendin/hero")
+    assert r.status_code == 200
+    d = r.json()
+    assert d["latest_vo2max"]["value"] == 49.0
+    assert d["latest_readiness"]["score"] == 78
+
+
+def test_get_runs():
+    r = client.get("/api/athlete/vriendin/runs")
+    assert r.status_code == 200
+    runs = r.json()
+    assert len(runs) == 1
+    assert runs[0]["distance_km"] == pytest.approx(8.0)
+
+
+def test_get_weekly_volume():
+    r = client.get("/api/athlete/vriendin/weekly_volume")
+    assert r.status_code == 200
+    weeks = r.json()
+    assert len(weeks) >= 1
+    assert weeks[0]["km"] == pytest.approx(8.0)
+
+
+def test_get_zone_distribution():
+    r = client.get("/api/athlete/vriendin/zone_distribution")
+    assert r.status_code == 200
+    z = r.json()
+    assert z["z3"] == pytest.approx(1200.0)
+
+
+def test_get_vo2max_trend():
+    r = client.get("/api/athlete/vriendin/vo2max_trend")
+    assert r.status_code == 200
+    trend = r.json()
+    assert trend[0]["vo2max"] == 49.0
+
+
+def test_get_daily_stats():
+    r = client.get("/api/athlete/vriendin/daily_stats")
+    assert r.status_code == 200
+    rows = r.json()
+    assert rows[0]["steps"] == 9000
+
+
+def test_athlete_not_found():
+    r = client.get("/api/athlete/nonexistent/hero")
+    assert r.status_code == 404
