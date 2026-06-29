@@ -1,0 +1,95 @@
+import sqlite3
+from pathlib import Path
+
+DB_PATH = Path(__file__).parent / "garmin_coach.db"
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS athletes (
+    id          TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    panels_config TEXT NOT NULL DEFAULT '[]'
+);
+
+CREATE TABLE IF NOT EXISTS activities (
+    athlete_id   TEXT NOT NULL,
+    activity_id  INTEGER NOT NULL,
+    date         TEXT NOT NULL,
+    name         TEXT,
+    type_key     TEXT,
+    distance_m   REAL,
+    duration_s   REAL,
+    avg_speed_mps REAL,
+    avg_hr       REAL,
+    max_hr       REAL,
+    hr_zone_1_s  REAL,
+    hr_zone_2_s  REAL,
+    hr_zone_3_s  REAL,
+    hr_zone_4_s  REAL,
+    hr_zone_5_s  REAL,
+    aerobic_effect  REAL,
+    anaerobic_effect REAL,
+    avg_cadence  REAL,
+    PRIMARY KEY (athlete_id, activity_id),
+    FOREIGN KEY (athlete_id) REFERENCES athletes(id)
+);
+
+CREATE TABLE IF NOT EXISTS daily_stats (
+    athlete_id     TEXT NOT NULL,
+    date           TEXT NOT NULL,
+    steps          INTEGER,
+    active_calories REAL,
+    total_calories REAL,
+    PRIMARY KEY (athlete_id, date),
+    FOREIGN KEY (athlete_id) REFERENCES athletes(id)
+);
+
+CREATE TABLE IF NOT EXISTS daily_heart_rates (
+    athlete_id  TEXT NOT NULL,
+    date        TEXT NOT NULL,
+    min_hr      INTEGER,
+    max_hr      INTEGER,
+    resting_hr  INTEGER,
+    PRIMARY KEY (athlete_id, date),
+    FOREIGN KEY (athlete_id) REFERENCES athletes(id)
+);
+
+CREATE TABLE IF NOT EXISTS body_battery (
+    athlete_id TEXT NOT NULL,
+    date       TEXT NOT NULL,
+    charged    REAL,
+    drained    REAL,
+    PRIMARY KEY (athlete_id, date),
+    FOREIGN KEY (athlete_id) REFERENCES athletes(id)
+);
+
+CREATE TABLE IF NOT EXISTS training_readiness (
+    athlete_id     TEXT NOT NULL,
+    date           TEXT NOT NULL,
+    score          INTEGER,
+    level          TEXT,
+    feedback_short TEXT,
+    PRIMARY KEY (athlete_id, date),
+    FOREIGN KEY (athlete_id) REFERENCES athletes(id)
+);
+
+CREATE TABLE IF NOT EXISTS vo2max (
+    athlete_id TEXT NOT NULL,
+    date       TEXT NOT NULL,
+    vo2max     REAL,
+    PRIMARY KEY (athlete_id, date),
+    FOREIGN KEY (athlete_id) REFERENCES athletes(id)
+);
+"""
+
+
+def get_conn(path: Path = DB_PATH) -> sqlite3.Connection:
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
+
+
+def init_db(path: Path = DB_PATH) -> None:
+    with get_conn(path) as conn:
+        conn.executescript(SCHEMA)
