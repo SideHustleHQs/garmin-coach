@@ -25,7 +25,19 @@ def test_schema_creates_all_tables():
         "athletes", "activities", "daily_stats",
         "daily_heart_rates", "body_battery",
         "training_readiness", "vo2max",
+        "training_load_balance", "activity_splits",
     }
+    p.unlink()
+
+
+def test_activities_has_new_columns():
+    p = make_tmp_db()
+    conn = get_conn(p)
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(activities)").fetchall()}
+    for col in ["training_load", "bb_cost", "avg_stride_cm", "avg_gct_ms",
+                "avg_vert_osc_mm", "avg_vert_ratio", "aerobic_effect_msg",
+                "training_effect_label", "avg_power"]:
+        assert col in cols, f"Missing column: {col}"
     p.unlink()
 
 
