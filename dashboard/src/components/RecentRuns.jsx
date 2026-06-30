@@ -1,47 +1,86 @@
-function pace(secsPerKm) {
-  if (!secsPerKm) return '--'
-  const m = Math.floor(secsPerKm / 60)
-  const s = Math.floor(secsPerKm % 60)
-  return `${m}:${String(s).padStart(2, '0')}`
+function formatTime(s) {
+  if (!s) return '—'
+  const m = Math.floor(s / 60)
+  const sec = Math.round(s % 60)
+  return `${m}:${String(sec).padStart(2, '0')}`
 }
 
-function duration(s) {
-  if (!s) return '--'
+function formatPace(s) {
+  if (!s) return '—'
   const m = Math.floor(s / 60)
-  return `${m} min`
+  const sec = Math.round(s % 60)
+  return `${m}:${String(sec).padStart(2, '0')}/km`
+}
+
+function EffectLabel({ msg, label }) {
+  if (!label) return <span style={{ color: 'var(--text-3)' }}>—</span>
+  const short = label.replace(/_/g, ' ').toLowerCase()
+  return (
+    <span style={{ fontSize: 11, color: 'var(--accent2)', textTransform: 'capitalize' }}>
+      {short}
+    </span>
+  )
 }
 
 export default function RecentRuns({ data }) {
   const runs = (data.runs || []).slice(0, 10)
-  if (runs.length === 0) return (
-    <div className="card"><div className="label">Recente runs</div><div className="no-data">Geen runs gevonden</div></div>
-  )
+
+  if (runs.length === 0) {
+    return (
+      <div className="card">
+        <span className="label">Recente Runs</span>
+        <p className="no-data">Geen runs gevonden</p>
+      </div>
+    )
+  }
 
   return (
     <div className="card">
-      <div className="label" style={{ marginBottom: 12 }}>Recente runs</div>
+      <span className="label">Recente Runs</span>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
-            <tr style={{ color: 'var(--text-3)', borderBottom: '1px solid var(--border)' }}>
-              {['Datum', 'Naam', 'Afstand', 'Duur', 'Tempo', 'Gem HR', 'Aerob.'].map(h => (
-                <th key={h} style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 500 }}>{h}</th>
-              ))}
+            <tr style={{ color: 'var(--text-3)', fontSize: 11 }}>
+              <th style={{ textAlign: 'left',   padding: '4px 8px' }}>Datum</th>
+              <th style={{ textAlign: 'right',  padding: '4px 8px' }}>km</th>
+              <th style={{ textAlign: 'right',  padding: '4px 8px' }}>Pace</th>
+              <th style={{ textAlign: 'right',  padding: '4px 8px' }}>HR</th>
+              <th style={{ textAlign: 'right',  padding: '4px 8px' }}>AE</th>
+              <th style={{ textAlign: 'right',  padding: '4px 8px' }}>Load</th>
+              <th style={{ textAlign: 'right',  padding: '4px 8px' }}>BB</th>
+              <th style={{ textAlign: 'left',   padding: '4px 8px' }}>Effect</th>
             </tr>
           </thead>
           <tbody>
             {runs.map((r, i) => (
-              <tr key={i} style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-1)' }}>
-                <td style={{ padding: '8px 8px', color: 'var(--text-2)' }}>{r.date}</td>
-                <td style={{ padding: '8px 8px' }}>{r.name || '—'}</td>
-                <td style={{ padding: '8px 8px' }}>{r.distance_km?.toFixed(1)} km</td>
-                <td style={{ padding: '8px 8px' }}>{duration(r.duration_s)}</td>
-                <td style={{ padding: '8px 8px', color: 'var(--accent)' }}>{pace(r.avg_pace_s_per_km)}</td>
-                <td style={{ padding: '8px 8px' }}>{r.avg_hr ? `${Math.round(r.avg_hr)} bpm` : '—'}</td>
-                <td style={{ padding: '8px 8px' }}>
-                  {r.aerobic_effect != null
-                    ? <span style={{ color: r.aerobic_effect >= 3 ? 'var(--green)' : 'var(--text-2)' }}>{r.aerobic_effect.toFixed(1)}</span>
-                    : '—'}
+              <tr
+                key={i}
+                style={{
+                  borderTop: '1px solid var(--border)',
+                  background: i % 2 === 0 ? 'transparent' : 'var(--bg-card2)',
+                }}
+              >
+                <td style={{ padding: '6px 8px', color: 'var(--text-2)' }}>{r.date}</td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--text-1)' }}>
+                  {r.distance_km?.toFixed(1)}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--text-2)', fontVariantNumeric: 'tabular-nums' }}>
+                  {formatPace(r.avg_pace_s_per_km)}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--text-2)' }}>
+                  {r.avg_hr ? Math.round(r.avg_hr) : '—'}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', color: r.aerobic_effect >= 3 ? 'var(--green)' : 'var(--text-2)' }}>
+                  {r.aerobic_effect?.toFixed(1) ?? '—'}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', color: 'var(--text-2)' }}>
+                  {r.training_load ? Math.round(r.training_load) : '—'}
+                </td>
+                <td style={{ padding: '6px 8px', textAlign: 'right', color: r.bb_cost < -20 ? 'var(--orange)' : 'var(--text-2)' }}>
+                  {r.bb_cost != null ? r.bb_cost : '—'}
+                </td>
+                <td style={{ padding: '6px 8px' }}>
+                  <EffectLabel label={r.training_effect_label} />
                 </td>
               </tr>
             ))}
