@@ -2,19 +2,23 @@ import { useState, useEffect } from 'react'
 import './theme.css'
 import { api } from './api'
 import GoalBanner from './components/GoalBanner'
+import AttentionPoints from './components/AttentionPoints'
 import HeroRow from './components/HeroRow'
+import TrainingLoad from './components/TrainingLoad'
 import WeekVolume from './components/WeekVolume'
 import TempoTrend from './components/TempoTrend'
 import ZoneDistribution from './components/ZoneDistribution'
+import RunEfficiency from './components/RunEfficiency'
 import VO2MaxTrend from './components/VO2MaxTrend'
 import RecentRuns from './components/RecentRuns'
+import SplitsPanel from './components/SplitsPanel'
 import DailyStats from './components/DailyStats'
 import RecoveryStrip from './components/RecoveryStrip'
-import CoachCard from './components/CoachCard'
 
 const PANEL_COMPONENTS = {
-  GoalBanner, HeroRow, WeekVolume, TempoTrend, ZoneDistribution,
-  VO2MaxTrend, RecentRuns, DailyStats, RecoveryStrip, CoachCard,
+  GoalBanner, AttentionPoints, HeroRow, TrainingLoad,
+  WeekVolume, TempoTrend, ZoneDistribution, RunEfficiency,
+  VO2MaxTrend, RecentRuns, SplitsPanel, DailyStats, RecoveryStrip,
 }
 
 function AthleteTab({ athleteId }) {
@@ -26,7 +30,8 @@ function AthleteTab({ athleteId }) {
     async function load() {
       setLoading(true)
       try {
-        const [athletes, hero, runs, weekVol, tempo, zones, vo2, daily, recovery] = await Promise.all([
+        const [athletes, hero, runs, weekVol, tempo, zones, vo2, daily, recovery,
+               trainingLoad, runEfficiency, attentionPoints] = await Promise.all([
           api.athletes(),
           api.hero(athleteId),
           api.runs(athleteId),
@@ -36,10 +41,21 @@ function AthleteTab({ athleteId }) {
           api.vo2maxTrend(athleteId),
           api.dailyStats(athleteId),
           api.recovery(athleteId),
+          api.trainingLoad(athleteId),
+          api.runEfficiency(athleteId),
+          api.attentionPoints(athleteId),
         ])
+
         const athlete = athletes.find(a => a.id === athleteId) || {}
         setPanels(athlete.panels || Object.keys(PANEL_COMPONENTS))
-        setData({ hero, runs, weekVol, tempo, zones, vo2, daily, recovery })
+
+        const latestRun = runs[0]
+        const splits = latestRun
+          ? await api.splits(athleteId, latestRun.activity_id).catch(() => [])
+          : []
+
+        setData({ hero, runs, weekVol, tempo, zones, vo2, daily, recovery,
+                  trainingLoad, runEfficiency, attentionPoints, splits })
       } finally {
         setLoading(false)
       }
@@ -73,7 +89,6 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
-      {/* Header */}
       <div style={{
         background: 'var(--bg-card)', borderBottom: '1px solid var(--border)',
         padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 24,
@@ -97,8 +112,6 @@ export default function App() {
           ))}
         </div>
       </div>
-
-      {/* Content */}
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 16px' }}>
         {activeId && <AthleteTab athleteId={activeId} />}
       </div>

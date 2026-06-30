@@ -317,9 +317,10 @@ def run_ingest(athlete_id: str, display_name: str, output_dir: Path) -> None:
     conn = get_conn()
 
     default_panels = [
-        "GoalBanner", "HeroRow", "WeekVolume", "TempoTrend",
-        "ZoneDistribution", "VO2MaxTrend", "RecentRuns",
-        "DailyStats", "RecoveryStrip", "CoachCard",
+        "GoalBanner", "AttentionPoints", "HeroRow", "TrainingLoad",
+        "WeekVolume", "TempoTrend", "ZoneDistribution", "RunEfficiency",
+        "VO2MaxTrend", "RecentRuns", "SplitsPanel",
+        "DailyStats", "RecoveryStrip",
     ]
     upsert_athlete(conn, athlete_id, display_name, default_panels)
 
