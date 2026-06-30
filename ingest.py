@@ -33,8 +33,11 @@ def ingest_activities(conn: sqlite3.Connection, athlete_id: str, data: list) -> 
                 athlete_id, activity_id, date, name, type_key,
                 distance_m, duration_s, avg_speed_mps, avg_hr, max_hr,
                 hr_zone_1_s, hr_zone_2_s, hr_zone_3_s, hr_zone_4_s, hr_zone_5_s,
-                aerobic_effect, anaerobic_effect, avg_cadence
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                aerobic_effect, anaerobic_effect, avg_cadence,
+                training_load, bb_cost, avg_stride_cm, avg_gct_ms,
+                avg_vert_osc_mm, avg_vert_ratio, aerobic_effect_msg,
+                training_effect_label, avg_power
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(athlete_id, activity_id) DO UPDATE SET
                 date=excluded.date, name=excluded.name, type_key=excluded.type_key,
                 distance_m=excluded.distance_m, duration_s=excluded.duration_s,
@@ -45,7 +48,14 @@ def ingest_activities(conn: sqlite3.Connection, athlete_id: str, data: list) -> 
                 hr_zone_5_s=excluded.hr_zone_5_s,
                 aerobic_effect=excluded.aerobic_effect,
                 anaerobic_effect=excluded.anaerobic_effect,
-                avg_cadence=excluded.avg_cadence
+                avg_cadence=excluded.avg_cadence,
+                training_load=excluded.training_load, bb_cost=excluded.bb_cost,
+                avg_stride_cm=excluded.avg_stride_cm, avg_gct_ms=excluded.avg_gct_ms,
+                avg_vert_osc_mm=excluded.avg_vert_osc_mm,
+                avg_vert_ratio=excluded.avg_vert_ratio,
+                aerobic_effect_msg=excluded.aerobic_effect_msg,
+                training_effect_label=excluded.training_effect_label,
+                avg_power=excluded.avg_power
             """,
             (
                 athlete_id,
@@ -66,6 +76,15 @@ def ingest_activities(conn: sqlite3.Connection, athlete_id: str, data: list) -> 
                 a.get("aerobicTrainingEffect"),
                 a.get("anaerobicTrainingEffect"),
                 a.get("averageRunningCadenceInStepsPerMinute"),
+                a.get("activityTrainingLoad"),
+                a.get("differenceBodyBattery"),
+                a.get("avgStrideLength"),
+                a.get("avgGroundContactTime"),
+                a.get("avgVerticalOscillation"),
+                a.get("avgVerticalRatio"),
+                a.get("aerobicTrainingEffectMessage"),
+                a.get("trainingEffectLabel"),
+                a.get("avgPower"),
             ),
         )
         count += 1
@@ -182,6 +201,114 @@ def ingest_vo2max_from_training_status(conn: sqlite3.Connection, athlete_id: str
     return count
 
 
+def ingest_training_load_balance(conn: sqlite3.Connection, athlete_id: str, data: dict) -> int:
+    count = 0
+    for date, row in data.items():
+        if not row:
+            continue
+
+        acwr: dict = {}
+        status_feedback = None
+        status_map = (row.get("mostRecentTrainingStatus") or {}).get("latestTrainingStatusData") or {}
+        for device_data in status_map.values():
+            if device_data.get("primaryTrainingDevice"):
+                acwr = device_data.get("acuteTrainingLoadDTO") or {}
+                status_feedback = device_data.get("trainingStatusFeedbackPhrase")
+                break
+
+        bal: dict = {}
+        balance_feedback = None
+        balance_map = (
+            (row.get("mostRecentTrainingLoadBalance") or {})
+            .get("metricsTrainingLoadBalanceDTOMap") or {}
+        )
+        for device_data in balance_map.values():
+            if device_data.get("primaryTrainingDevice"):
+                bal = device_data
+                balance_feedback = device_data.get("trainingBalanceFeedbackPhrase")
+                break
+
+        conn.execute(
+            """
+            INSERT INTO training_load_balance (
+                athlete_id, date, acwr, acwr_percent, acwr_status,
+                acute_load, chronic_load, chronic_min, chronic_max,
+                aerobic_low, aerobic_high, anaerobic,
+                aerobic_low_target_min, aerobic_low_target_max,
+                aerobic_high_target_min, aerobic_high_target_max,
+                anaerobic_target_min, anaerobic_target_max,
+                balance_feedback, status_feedback
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ON CONFLICT(athlete_id, date) DO UPDATE SET
+                acwr=excluded.acwr, acwr_percent=excluded.acwr_percent,
+                acwr_status=excluded.acwr_status,
+                acute_load=excluded.acute_load, chronic_load=excluded.chronic_load,
+                chronic_min=excluded.chronic_min, chronic_max=excluded.chronic_max,
+                aerobic_low=excluded.aerobic_low, aerobic_high=excluded.aerobic_high,
+                anaerobic=excluded.anaerobic,
+                aerobic_low_target_min=excluded.aerobic_low_target_min,
+                aerobic_low_target_max=excluded.aerobic_low_target_max,
+                aerobic_high_target_min=excluded.aerobic_high_target_min,
+                aerobic_high_target_max=excluded.aerobic_high_target_max,
+                anaerobic_target_min=excluded.anaerobic_target_min,
+                anaerobic_target_max=excluded.anaerobic_target_max,
+                balance_feedback=excluded.balance_feedback,
+                status_feedback=excluded.status_feedback
+            """,
+            (
+                athlete_id, date,
+                acwr.get("dailyAcuteChronicWorkloadRatio"),
+                acwr.get("acwrPercent"),
+                acwr.get("acwrStatus"),
+                acwr.get("dailyTrainingLoadAcute"),
+                acwr.get("dailyTrainingLoadChronic"),
+                acwr.get("minTrainingLoadChronic"),
+                acwr.get("maxTrainingLoadChronic"),
+                bal.get("monthlyLoadAerobicLow"),
+                bal.get("monthlyLoadAerobicHigh"),
+                bal.get("monthlyLoadAnaerobic"),
+                bal.get("monthlyLoadAerobicLowTargetMin"),
+                bal.get("monthlyLoadAerobicLowTargetMax"),
+                bal.get("monthlyLoadAerobicHighTargetMin"),
+                bal.get("monthlyLoadAerobicHighTargetMax"),
+                bal.get("monthlyLoadAnaerobicTargetMin"),
+                bal.get("monthlyLoadAnaerobicTargetMax"),
+                balance_feedback,
+                status_feedback,
+            ),
+        )
+        count += 1
+    conn.commit()
+    return count
+
+
+def ingest_activity_splits(conn: sqlite3.Connection, athlete_id: str, activity_id: int, data: dict) -> int:
+    """Ingest lap splits voor één activiteit. data = JSON van get_activity_splits()."""
+    laps = data.get("lapDTOs") or data.get("laps") or []
+    count = 0
+    for lap in laps:
+        split_num = (lap.get("lapIndex") or 0) + 1
+        conn.execute(
+            """
+            INSERT INTO activity_splits (athlete_id, activity_id, split_num, distance_m, duration_s, avg_hr, avg_speed_mps)
+            VALUES (?,?,?,?,?,?,?)
+            ON CONFLICT(athlete_id, activity_id, split_num) DO UPDATE SET
+                distance_m=excluded.distance_m, duration_s=excluded.duration_s,
+                avg_hr=excluded.avg_hr, avg_speed_mps=excluded.avg_speed_mps
+            """,
+            (
+                athlete_id, activity_id, split_num,
+                lap.get("distance"),
+                lap.get("duration"),
+                lap.get("averageHR"),
+                lap.get("averageSpeed"),
+            ),
+        )
+        count += 1
+    conn.commit()
+    return count
+
+
 def run_ingest(athlete_id: str, display_name: str, output_dir: Path) -> None:
     init_db()
     conn = get_conn()
@@ -215,6 +342,17 @@ def run_ingest(athlete_id: str, display_name: str, output_dir: Path) -> None:
 
     ts = load("training_status.json") or {}
     print(f"  vo2max: {ingest_vo2max_from_training_status(conn, athlete_id, ts)}")
+    print(f"  training_load_balance: {ingest_training_load_balance(conn, athlete_id, ts)}")
+
+    splits_files = list(output_dir.glob("splits_*.json"))
+    total_splits = 0
+    for sf in splits_files:
+        try:
+            act_id = int(sf.stem.replace("splits_", ""))
+            total_splits += ingest_activity_splits(conn, athlete_id, act_id, json.loads(sf.read_text()))
+        except (ValueError, json.JSONDecodeError):
+            pass
+    print(f"  activity_splits: {total_splits} laps over {len(splits_files)} runs")
 
     print(f"\nDone → {DB_PATH}")
 
