@@ -80,6 +80,20 @@ def main():
     activities = fetch("activities", client.get_activities_by_date, start_str, end_str)
     body_battery = fetch("body_battery", client.get_body_battery, start_str, end_str)
 
+    # --- Splits per hardloopactiviteit ---
+    running_ids = [
+        a["activityId"]
+        for a in (activities or [])
+        if (a.get("activityType") or {}).get("typeKey") == "running"
+    ]
+    print(f"\nFetching splits for {len(running_ids)} runs...")
+    for act_id in running_ids:
+        splits = fetch(f"splits {act_id}", client.get_activity_splits, act_id)
+        if splits is not None:
+            (out / f"splits_{act_id}.json").write_text(
+                json.dumps(splits, indent=2, ensure_ascii=False)
+            )
+
     # --- Per-day endpoints ---
     stats             = fetch_per_day("stats",              client.get_stats,                days)
     heart_rates       = fetch_per_day("heart_rates",        client.get_heart_rates,          days)
