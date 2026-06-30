@@ -13,6 +13,7 @@ from ingest import (
     ingest_activities, ingest_training_readiness,
     ingest_vo2max_from_training_status, ingest_daily_stats,
     ingest_body_battery, upsert_athlete,
+    ingest_training_load_balance, ingest_activity_splits,
 )
 
 # Patch DB_PATH before importing app
@@ -58,10 +59,55 @@ def setup_db():
     ingest_body_battery(conn, "vriendin", [
         {"date": "2026-06-20", "charged": 70.0, "drained": 35.0}
     ])
+    ingest_training_load_balance(conn, "vriendin", {
+        "2026-06-20": {
+            "mostRecentTrainingStatus": {
+                "latestTrainingStatusData": {
+                    "dev1": {
+                        "primaryTrainingDevice": True,
+                        "trainingStatusFeedbackPhrase": "MAINTAINING_2",
+                        "acuteTrainingLoadDTO": {
+                            "acwrPercent": 38,
+                            "acwrStatus": "OPTIMAL",
+                            "dailyTrainingLoadAcute": 212.0,
+                            "maxTrainingLoadChronic": 328.5,
+                            "minTrainingLoadChronic": 175.2,
+                            "dailyTrainingLoadChronic": 219.0,
+                            "dailyAcuteChronicWorkloadRatio": 0.9,
+                        },
+                    }
+                }
+            },
+            "mostRecentTrainingLoadBalance": {
+                "metricsTrainingLoadBalanceDTOMap": {
+                    "dev1": {
+                        "primaryTrainingDevice": True,
+                        "monthlyLoadAerobicLow": 19.4,
+                        "monthlyLoadAerobicHigh": 745.2,
+                        "monthlyLoadAnaerobic": 16.6,
+                        "monthlyLoadAerobicLowTargetMin": 219,
+                        "monthlyLoadAerobicLowTargetMax": 481,
+                        "monthlyLoadAerobicHighTargetMin": 262,
+                        "monthlyLoadAerobicHighTargetMax": 525,
+                        "monthlyLoadAnaerobicTargetMin": 0,
+                        "monthlyLoadAnaerobicTargetMax": 262,
+                        "trainingBalanceFeedbackPhrase": "AEROBIC_LOW_SHORTAGE",
+                    }
+                }
+            },
+        }
+    })
+    ingest_activity_splits(conn, "vriendin", 1001, {
+        "lapDTOs": [
+            {"lapIndex": 0, "distance": 1000.0, "duration": 325.0, "averageHR": 158.0, "averageSpeed": 3.08},
+            {"lapIndex": 1, "distance": 1000.0, "duration": 330.0, "averageHR": 162.0, "averageSpeed": 3.03},
+        ]
+    })
     yield
     conn.executescript("""
         DELETE FROM activities; DELETE FROM training_readiness;
         DELETE FROM vo2max; DELETE FROM daily_stats; DELETE FROM body_battery;
+        DELETE FROM training_load_balance; DELETE FROM activity_splits;
         DELETE FROM athletes;
     """)
     conn.commit()
@@ -125,3 +171,45 @@ def test_get_daily_stats():
 def test_athlete_not_found():
     r = client.get("/api/athlete/nonexistent/hero")
     assert r.status_code == 404
+
+
+def test_get_training_load():
+    r = client.get("/api/athlete/vriendin/training_load")
+    assert r.status_code == 200
+    d = r.json()
+    assert d["latest"] is not None
+    assert abs(d["latest"]["acwr"] - 0.9) < 0.01
+    assert d["latest"]["acwr_status"] == "OPTIMAL"
+    assert d["balance"]["feedback"] == "AEROBIC_LOW_SHORTAGE"
+
+
+def test_get_attention_points():
+    r = client.get("/api/athlete/vriendin/attention_points")
+    assert r.status_code == 200
+    points = r.json()
+    assert len(points) >= 1
+    messages = [p["message"] for p in points]
+    assert any("Z1" in m or "duurlopen" in m for m in messages)
+
+
+def test_get_run_efficiency():
+    r = client.get("/api/athlete/vriendin/run_efficiency")
+    assert r.status_code == 200
+    # may be empty if activity has no gct data — just verify no 500
+
+
+def test_get_activity_splits():
+    r = client.get("/api/athlete/vriendin/activity/1001/splits")
+    assert r.status_code == 200
+    splits = r.json()
+    assert len(splits) == 2
+    assert splits[0]["split_num"] == 1
+    assert splits[0]["pace_s_per_km"] is not None
+
+
+def test_runs_include_training_load():
+    r = client.get("/api/athlete/vriendin/runs")
+    assert r.status_code == 200
+    runs = r.json()
+    assert "training_load" in runs[0]
+    assert "activity_id" in runs[0]
