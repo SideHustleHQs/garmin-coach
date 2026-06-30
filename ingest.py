@@ -204,7 +204,7 @@ def ingest_vo2max_from_training_status(conn: sqlite3.Connection, athlete_id: str
 def ingest_training_load_balance(conn: sqlite3.Connection, athlete_id: str, data: dict) -> int:
     count = 0
     for date, row in data.items():
-        if not row:
+        if row is None:
             continue
 
         acwr: dict = {}
@@ -287,7 +287,10 @@ def ingest_activity_splits(conn: sqlite3.Connection, athlete_id: str, activity_i
     laps = data.get("lapDTOs") or data.get("laps") or []
     count = 0
     for lap in laps:
-        split_num = (lap.get("lapIndex") or 0) + 1
+        lap_index = lap.get("lapIndex")
+        if lap_index is None:
+            print(f"  WARNING: lap missing lapIndex, defaulting to 0", file=sys.stderr)
+        split_num = (lap_index or 0) + 1
         conn.execute(
             """
             INSERT INTO activity_splits (athlete_id, activity_id, split_num, distance_m, duration_s, avg_hr, avg_speed_mps)
@@ -350,8 +353,8 @@ def run_ingest(athlete_id: str, display_name: str, output_dir: Path) -> None:
         try:
             act_id = int(sf.stem.replace("splits_", ""))
             total_splits += ingest_activity_splits(conn, athlete_id, act_id, json.loads(sf.read_text()))
-        except (ValueError, json.JSONDecodeError):
-            pass
+        except (ValueError, json.JSONDecodeError) as e:
+            print(f"  WARNING: Skipped {sf.name}: {e}", file=sys.stderr)
     print(f"  activity_splits: {total_splits} laps over {len(splits_files)} runs")
 
     print(f"\nDone → {DB_PATH}")
