@@ -166,7 +166,7 @@ def get_weekly_volume(athlete_id: str) -> list[dict]:
             week_expr = "strftime('%Y-W%W', date)"
         sql = f"""
             SELECT {week_expr} AS week,
-                   SUM(distance_m) / 1000.0 AS total_km,
+                   SUM(distance_m) / 1000.0 AS km,
                    COUNT(*) AS run_count
             FROM activities
             WHERE athlete_id=? AND type_key='running'

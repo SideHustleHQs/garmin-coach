@@ -144,7 +144,7 @@ def test_get_weekly_volume():
     assert r.status_code == 200
     weeks = r.json()
     assert len(weeks) >= 1
-    assert weeks[0]["total_km"] == pytest.approx(8.0)
+    assert weeks[0]["km"] == pytest.approx(8.0)
 
 
 def test_get_zone_distribution():
