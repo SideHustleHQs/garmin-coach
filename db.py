@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS activity_splits (
 """
 
 SCHEMA_PG = """
+-- NOTE: keep in sync with SCHEMA_SQLITE (same tables, BIGINT activity_id, no FK constraints)
 CREATE TABLE IF NOT EXISTS athletes (
     id          TEXT PRIMARY KEY,
     display_name TEXT NOT NULL,
@@ -138,7 +139,6 @@ def use_postgres() -> bool:
 
 def get_pg_conn():
     import psycopg2
-    import psycopg2.extras
     conn = psycopg2.connect(DATABASE_URL)
     return conn
 
@@ -160,16 +160,16 @@ def init_db(path: Path = DB_PATH) -> None:
 
 
 def _init_pg() -> None:
-    import psycopg2
     conn = get_pg_conn()
-    cur = conn.cursor()
-    for stmt in SCHEMA_PG.strip().split(";"):
-        stmt = stmt.strip()
-        if stmt:
-            cur.execute(stmt)
-    conn.commit()
-    cur.close()
-    conn.close()
+    try:
+        with conn.cursor() as cur:
+            for stmt in SCHEMA_PG.strip().split(";"):
+                stmt = stmt.strip()
+                if stmt:
+                    cur.execute(stmt)
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _init_sqlite(path: Path) -> None:
