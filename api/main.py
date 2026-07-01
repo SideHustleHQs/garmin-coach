@@ -7,9 +7,10 @@ from api.routes import router
 
 app = FastAPI(title="Garmin Coach API")
 
+_vercel_url = os.environ.get("VERCEL_URL", "")
 ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    os.environ.get("VERCEL_URL", ""),
+    f"https://{_vercel_url}" if _vercel_url else "",
     os.environ.get("FRONTEND_URL", ""),
 ]
 
