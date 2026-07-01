@@ -1,0 +1,34 @@
+name: Daily Garmin Sync
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # 06:00 UTC = 08:00 CEST
+  workflow_dispatch:        # allow manual trigger from GitHub UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Pull Garmin data
+        env:
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+        run: python garmin_test_pull.py
+
+      - name: Ingest to Supabase
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python ingest.py --athlete vriendin --name Vriendin
