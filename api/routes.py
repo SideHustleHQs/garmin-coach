@@ -32,7 +32,7 @@ def _exec(conn, sql: str, params=()):
     if db_module.use_postgres():
         sql = sql.replace("?", "%s")
         cur = conn.cursor()
-        cur.execute(sql, params if params else None)
+        cur.execute(sql, params or None)
         return cur
     return conn.execute(sql, params)
 
@@ -156,18 +156,26 @@ def get_runs(athlete_id: str, limit: int = 20) -> list[dict[str, Any]]:
 
 
 @router.get("/athlete/{athlete_id}/weekly_volume")
-def get_weekly_volume(athlete_id: str) -> list[dict[str, Any]]:
+def get_weekly_volume(athlete_id: str) -> list[dict]:
     conn = _conn()
     try:
         _athlete_or_404(conn, athlete_id)
-        rows = _exec(
-            conn,
-            """SELECT strftime('%Y-W%W', date) AS week, SUM(distance_m)/1000.0 AS km
-               FROM activities WHERE athlete_id=? AND type_key='running'
-               GROUP BY week ORDER BY week""",
-            (athlete_id,),
-        ).fetchall()
-        return [{"week": r["week"], "km": round(r["km"], 2)} for r in rows]
+        if db_module.use_postgres():
+            week_expr = "to_char(date::date, 'IYYY-\"W\"IW')"
+        else:
+            week_expr = "strftime('%Y-W%W', date)"
+        sql = f"""
+            SELECT {week_expr} AS week,
+                   SUM(distance_m) / 1000.0 AS total_km,
+                   COUNT(*) AS run_count
+            FROM activities
+            WHERE athlete_id=? AND type_key='running'
+            GROUP BY week
+            ORDER BY week DESC
+            LIMIT 16
+        """
+        rows = _exec(conn, sql, (athlete_id,)).fetchall()
+        return [dict(r) for r in rows]
     finally:
         if db_module.use_postgres():
             conn.close()
