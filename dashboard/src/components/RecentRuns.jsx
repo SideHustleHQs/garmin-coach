@@ -38,17 +38,17 @@ export default function RecentRuns({ data }) {
     <div className="card">
       <span className="label">Recente Runs</span>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }} aria-label="Recente hardloopactiviteiten">
           <thead>
             <tr style={{ color: 'var(--text-3)', fontSize: 11 }}>
-              <th style={{ textAlign: 'left',   padding: '4px 8px' }}>Datum</th>
-              <th style={{ textAlign: 'right',  padding: '4px 8px' }}>km</th>
-              <th style={{ textAlign: 'right',  padding: '4px 8px' }}>Pace</th>
-              <th style={{ textAlign: 'right',  padding: '4px 8px' }}>HR</th>
-              <th style={{ textAlign: 'right',  padding: '4px 8px' }}>AE</th>
-              <th style={{ textAlign: 'right',  padding: '4px 8px' }}>Load</th>
-              <th style={{ textAlign: 'right',  padding: '4px 8px' }}>BB</th>
-              <th style={{ textAlign: 'left',   padding: '4px 8px' }}>Effect</th>
+              <th scope="col" style={{ textAlign: 'left',   padding: '4px 8px' }}>Datum</th>
+              <th scope="col" style={{ textAlign: 'right',  padding: '4px 8px' }}>km</th>
+              <th scope="col" style={{ textAlign: 'right',  padding: '4px 8px' }}>Pace</th>
+              <th scope="col" style={{ textAlign: 'right',  padding: '4px 8px' }}>HR</th>
+              <th scope="col" style={{ textAlign: 'right',  padding: '4px 8px' }}>AE</th>
+              <th scope="col" style={{ textAlign: 'right',  padding: '4px 8px' }}>Load</th>
+              <th scope="col" style={{ textAlign: 'right',  padding: '4px 8px' }}>BB</th>
+              <th scope="col" style={{ textAlign: 'left',   padding: '4px 8px' }}>Effect</th>
             </tr>
           </thead>
           <tbody>

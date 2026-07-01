@@ -27,7 +27,7 @@ export default function AttentionPoints({ data }) {
               gap: 12,
             }}
           >
-            <Icon size={18} color={color} style={{ flexShrink: 0, marginTop: 1 }} />
+            <Icon size={18} color={color} style={{ flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
             <span style={{ color: 'var(--text-1)', fontSize: 14, lineHeight: 1.5 }}>
               {p.message}
             </span>

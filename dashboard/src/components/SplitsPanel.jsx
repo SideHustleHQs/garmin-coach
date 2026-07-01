@@ -24,13 +24,13 @@ export default function SplitsPanel({ data }) {
   return (
     <div className="card">
       <span className="label">Splits (laatste run)</span>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }} aria-label="Km-splits laatste run">
         <thead>
           <tr style={{ color: 'var(--text-3)', fontSize: 11 }}>
-            <th style={{ textAlign: 'left', paddingBottom: 6, fontWeight: 500 }}>km</th>
-            <th style={{ textAlign: 'right', paddingBottom: 6, fontWeight: 500 }}>afstand</th>
-            <th style={{ textAlign: 'right', paddingBottom: 6, fontWeight: 500 }}>pace</th>
-            <th style={{ textAlign: 'right', paddingBottom: 6, fontWeight: 500 }}>HR</th>
+            <th scope="col" style={{ textAlign: 'left', paddingBottom: 6, fontWeight: 500 }}>km</th>
+            <th scope="col" style={{ textAlign: 'right', paddingBottom: 6, fontWeight: 500 }}>afstand</th>
+            <th scope="col" style={{ textAlign: 'right', paddingBottom: 6, fontWeight: 500 }}>pace</th>
+            <th scope="col" style={{ textAlign: 'right', paddingBottom: 6, fontWeight: 500 }}>HR</th>
           </tr>
         </thead>
         <tbody>

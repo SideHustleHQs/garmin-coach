@@ -63,7 +63,7 @@ function AthleteTab({ athleteId }) {
     load()
   }, [athleteId])
 
-  if (loading) return <div style={{ padding: 40, color: 'var(--text-2)' }}>Laden...</div>
+  if (loading) return <div style={{ padding: 40, color: 'var(--text-2)' }}>Laden…</div>
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -105,7 +105,10 @@ export default function App() {
                 padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
                 background: activeId === a.id ? 'var(--accent)' : 'var(--bg-card2)',
                 color: 'var(--text-1)', fontSize: 13, fontWeight: 600,
+                outline: 'none',
               }}
+              onFocus={e => e.currentTarget.style.boxShadow = '0 0 0 2px var(--accent)'}
+              onBlur={e => e.currentTarget.style.boxShadow = 'none'}
             >
               {a.display_name}
             </button>

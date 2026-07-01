@@ -37,7 +37,7 @@ function AcwrGauge({ acwr }) {
   }
 
   return (
-    <svg width={160} height={100} viewBox="0 0 160 100">
+    <svg width={160} height={100} viewBox="0 0 160 100" role="img" aria-label={`ACWR gauge: ${ratio.toFixed(2)}`}>
       {zones.map((z, i) => (
         <path key={i} d={arcPath(z.startDeg, z.endDeg)} fill={z.color} opacity={0.25} />
       ))}
