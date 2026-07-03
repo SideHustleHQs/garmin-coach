@@ -9,7 +9,7 @@
     {
       "src": "dashboard/package.json",
       "use": "@vercel/static-build",
-      "config": { "distDir": "dashboard/dist" }
+      "config": { "distDir": "dist" }
     }
   ],
   "routes": [
