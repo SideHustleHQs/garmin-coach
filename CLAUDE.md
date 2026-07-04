@@ -8,10 +8,20 @@ Privé dashboard voor hardloop/Hyrox-training (eigen data + vriendin).
 - **GitHub:** SideHustleHQs/garmin-coach (privé)
 - **Vercel scope:** sidehustlehq (persoonlijk)
 
+## Twee werelden — NOOIT mengen
+| Wereld | GitHub | Vercel scope | Google |
+|--------|--------|-------------|--------|
+| PRIVÉ (deze repo) | SideHustleHQs | sidehustlehq | privé |
+| WERK | rowan-blip | werk-team | rowan@contentventures.nl |
+
 ## Deploy-regel (HARD)
-Vóór elke `vercel` deploy: controleer `vercel whoami`.
-- Moet tonen: account onder **sidehustlehq**
-- Zo niet → **stop**, meld het, deploy niet
+Vóór ELKE `vercel` deploy: draai `vercel whoami` en toon de uitkomst.
+- Moet tonen: **sidehustlehq**
+- Toont het iets anders (bijv. `rowan-blip`) → **STOP**, meld het, deploy NIET
+- Wissel indien nodig: `vercel switch` → sidehustlehq
+
+## Secrets
+Uitsluitend uit **Bitwarden**. Nooit uit chat, losse JSON, of hardcoded.
 
 ## Secrets & env vars
 Komen uitsluitend uit **Bitwarden**.
