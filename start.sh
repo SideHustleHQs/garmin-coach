@@ -1,41 +1,26 @@
 #!/usr/bin/env bash
 set -e
 
-ROOT="$(cd "$(dirname "$0")" && pwd)"
-cd "$ROOT"
+DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Activeer venv
-source .venv/bin/activate
+if [ -f "$DIR/.env" ]; then
+  set -a && source "$DIR/.env" && set +a
+fi
 
-# Ingest meest recente data
-echo "=== Ingest ==="
-python ingest.py --athlete vriendin --name "Vriendin"
+echo "API  → http://localhost:8000"
+echo "App  → http://localhost:5173"
 
-# Start API in background
-echo "=== API starten op :8000 ==="
-uvicorn api.main:app --port 8000 &
+# Start FastAPI backend (api/main.py) on port 8000
+cd "$DIR"
+.venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload &
 API_PID=$!
 
-# Wacht tot API up is
-for i in $(seq 1 20); do
-  curl -s http://localhost:8000/api/athletes >/dev/null 2>&1 && break
-  sleep 0.3
-done
-
-# Start dashboard
-echo "=== Dashboard starten op :5173 ==="
-cd dashboard
+# Start Vite frontend on port 5173
+cd "$DIR/dashboard"
 npm run dev &
-DASH_PID=$!
+VITE_PID=$!
 
-echo ""
-echo "✓ Dashboard: http://localhost:5173"
-echo "✓ API:       http://localhost:8000"
-echo ""
-echo "Ctrl-C om te stoppen."
+# Cleanup on exit
+trap "kill $API_PID $VITE_PID 2>/dev/null" EXIT INT TERM
 
-cleanup() {
-  kill "$API_PID" "$DASH_PID" 2>/dev/null
-}
-trap cleanup EXIT INT TERM
 wait

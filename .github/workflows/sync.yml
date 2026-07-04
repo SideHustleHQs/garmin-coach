@@ -35,6 +35,8 @@ jobs:
         run: |
           mkdir -p .garmin_tokens/vriendin
           echo "$TOKENS" | base64 -d | tar -xz -C .garmin_tokens/vriendin
+          echo "[debug] restored token files:"
+          wc -c .garmin_tokens/vriendin/* || true
 
       - name: Pull Garmin data (vriendin)
         env:

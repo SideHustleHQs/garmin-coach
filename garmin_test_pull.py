@@ -24,7 +24,9 @@ def get_client(athlete: str, email: str, password: str) -> Garmin:
             print(f"[auth] token login OK ({athlete})")
             return client
         except Exception as exc:
+            import traceback
             print(f"[auth] token login FAILED ({athlete}): {type(exc).__name__}: {exc}")
+            traceback.print_exc()
 
     # Fresh login — garth handles MFA prompt internally if needed
     print(f"[auth] fresh login for '{athlete}'...")
