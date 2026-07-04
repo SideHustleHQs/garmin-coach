@@ -10,6 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    # secrets can't be used in step `if:` directly — map to env for the guard
+    env:
+      HAS_ROWAN: ${{ secrets.GARMIN_EMAIL_ROWAN != '' }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -22,13 +26,28 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Pull Garmin data
+      # --- Athlete 1: vriendin ---
+      - name: Pull Garmin data (vriendin)
         env:
           GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
           GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
-        run: python garmin_test_pull.py
+        run: python garmin_test_pull.py --athlete vriendin
 
-      - name: Ingest to Supabase
+      - name: Ingest to Supabase (vriendin)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python ingest.py --athlete vriendin --name Vriendin
+
+      # --- Athlete 2: rowan (runs only once ROWAN secrets are set) ---
+      - name: Pull Garmin data (rowan)
+        if: ${{ env.HAS_ROWAN == 'true' }}
+        env:
+          GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL_ROWAN }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD_ROWAN }}
+        run: python garmin_test_pull.py --athlete rowan
+
+      - name: Ingest to Supabase (rowan)
+        if: ${{ env.HAS_ROWAN == 'true' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python ingest.py --athlete rowan --name Rowan
