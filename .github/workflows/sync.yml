@@ -10,9 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
-    # secrets can't be used in step `if:` directly — map to env for the guard
+    # secrets can't be used in step `if:` directly — map to env for the guards.
+    # Athletes run only when their cached token secret exists. Token-login avoids
+    # Garmin's 429 rate-limit on fresh SSO logins from datacenter IPs.
     env:
-      HAS_ROWAN: ${{ secrets.GARMIN_EMAIL_ROWAN != '' }}
+      HAS_ROWAN: ${{ secrets.GARMIN_TOKENS_ROWAN != '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -27,6 +29,13 @@ jobs:
         run: pip install -r requirements.txt
 
       # --- Athlete 1: vriendin ---
+      - name: Restore Garmin tokens (vriendin)
+        env:
+          TOKENS: ${{ secrets.GARMIN_TOKENS_VRIENDIN }}
+        run: |
+          mkdir -p .garmin_tokens/vriendin
+          echo "$TOKENS" | base64 -d | tar -xz -C .garmin_tokens/vriendin
+
       - name: Pull Garmin data (vriendin)
         env:
           GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
@@ -38,7 +47,15 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python ingest.py --athlete vriendin --name Vriendin
 
-      # --- Athlete 2: rowan (runs only once ROWAN secrets are set) ---
+      # --- Athlete 2: rowan (runs only once GARMIN_TOKENS_ROWAN secret is set) ---
+      - name: Restore Garmin tokens (rowan)
+        if: ${{ env.HAS_ROWAN == 'true' }}
+        env:
+          TOKENS: ${{ secrets.GARMIN_TOKENS_ROWAN }}
+        run: |
+          mkdir -p .garmin_tokens/rowan
+          echo "$TOKENS" | base64 -d | tar -xz -C .garmin_tokens/rowan
+
       - name: Pull Garmin data (rowan)
         if: ${{ env.HAS_ROWAN == 'true' }}
         env:
