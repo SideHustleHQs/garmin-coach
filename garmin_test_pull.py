@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Pull N days of Garmin Connect data for one athlete."""
 
+from __future__ import annotations
+
 import argparse
 import getpass
 import json
@@ -12,11 +14,11 @@ from pathlib import Path
 from garminconnect import Garmin
 
 
-def get_client(athlete: str, email: str, password: str) -> Garmin:
+def get_client(athlete: str, email: str | None, password: str | None) -> Garmin:
     tokenstore = Path(".garmin_tokens") / athlete
     tokenstore.mkdir(parents=True, exist_ok=True)
 
-    # Try cached tokens first
+    # Try cached tokens first (works from residential IPs; no fresh SSO login).
     if any(tokenstore.iterdir()) if tokenstore.exists() else False:
         try:
             client = Garmin()
@@ -26,7 +28,19 @@ def get_client(athlete: str, email: str, password: str) -> Garmin:
         except Exception as exc:
             print(f"[auth] token login failed ({athlete}), falling back to fresh login: {type(exc).__name__}: {exc}")
 
-    # Fresh login — garth handles MFA prompt internally if needed
+    # Fresh login — resolve credentials lazily so headless runs with valid
+    # tokens never need them. Prompt only when attached to a terminal.
+    if not email or not password:
+        if sys.stdin.isatty():
+            email = email or input(f"Garmin email ({athlete}): ")
+            password = password or getpass.getpass(f"Garmin password ({athlete}): ")
+        else:
+            raise RuntimeError(
+                f"No cached tokens for '{athlete}' and no GARMIN_EMAIL/GARMIN_PASSWORD "
+                f"in a non-interactive run. Run once interactively to create "
+                f".garmin_tokens/{athlete}/."
+            )
+
     print(f"[auth] fresh login for '{athlete}'...")
     client = Garmin(email, password)
     client.login()
@@ -60,8 +74,8 @@ def main():
     parser.add_argument("--days", type=int, default=7, help="Number of days to fetch")
     args = parser.parse_args()
 
-    email = os.environ.get("GARMIN_EMAIL") or input("Garmin email: ")
-    password = os.environ.get("GARMIN_PASSWORD") or getpass.getpass("Garmin password: ")
+    email = os.environ.get("GARMIN_EMAIL")
+    password = os.environ.get("GARMIN_PASSWORD")
 
     client = get_client(args.athlete, email, password)
 

@@ -1,9 +1,11 @@
 name: Daily Garmin Sync
 
+# DEPRECATED as scheduled job: Garmin blocks GitHub Actions' datacenter IPs
+# (429 on fresh SSO login, empty response on oauth2 refresh). The daily sync now
+# runs locally on the Mac via launchd (residential IP) — see scripts/sync_local.sh
+# and com.garmincoach.sync.plist. Kept for manual dispatch / reference only.
 on:
-  schedule:
-    - cron: "0 6 * * *"   # 06:00 UTC = 08:00 CEST
-  workflow_dispatch:        # allow manual trigger from GitHub UI
+  workflow_dispatch:        # manual only
 
 jobs:
   sync:
