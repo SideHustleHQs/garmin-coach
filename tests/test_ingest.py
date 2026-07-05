@@ -291,6 +291,30 @@ def test_ingest_hrv_stores_summary():
     assert row["status"] == "BALANCED"
 
 
+def test_ingest_sleep_stores_durations_and_score():
+    from ingest import ingest_sleep
+    conn = get_conn(_new_db())
+    upsert_athlete(conn, "rowan", "Rowan", [])
+    data = {
+        "2026-07-02": {
+            "dailySleepDTO": {
+                "sleepTimeSeconds": 27720, "deepSleepSeconds": 5400,
+                "lightSleepSeconds": 16200, "remSleepSeconds": 5400, "awakeSleepSeconds": 720,
+                "sleepScores": {"overall": {"value": 82}},
+            }
+        },
+        "2026-07-03": {"dailySleepDTO": {"sleepTimeSeconds": None}},
+    }
+    n = ingest_sleep(conn, "rowan", data)
+    assert n == 1
+    row = conn.execute(
+        "SELECT duration_s, deep_s, score FROM sleep WHERE athlete_id='rowan' AND date='2026-07-02'"
+    ).fetchone()
+    assert row["duration_s"] == 27720
+    assert row["deep_s"] == 5400
+    assert row["score"] == 82
+
+
 def test_ingest_activities_stores_new_fields():
     p = make_tmp_db()
     conn = get_conn(p)

@@ -177,6 +177,35 @@ def ingest_hrv(conn: sqlite3.Connection, athlete_id: str, data: dict) -> int:
     return count
 
 
+def ingest_sleep(conn: sqlite3.Connection, athlete_id: str, data: dict) -> int:
+    count = 0
+    for date, row in (data or {}).items():
+        if not row:
+            continue
+        dto = row.get("dailySleepDTO") or {}
+        duration = dto.get("sleepTimeSeconds")
+        if not duration:
+            continue
+        scores = dto.get("sleepScores") or {}
+        overall = (scores.get("overall") or {}).get("value")
+        conn.execute(
+            """
+            INSERT INTO sleep (athlete_id, date, duration_s, deep_s, light_s, rem_s, awake_s, score)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(athlete_id, date) DO UPDATE SET
+                duration_s=excluded.duration_s, deep_s=excluded.deep_s,
+                light_s=excluded.light_s, rem_s=excluded.rem_s,
+                awake_s=excluded.awake_s, score=excluded.score
+            """,
+            (athlete_id, date, duration, dto.get("deepSleepSeconds"),
+             dto.get("lightSleepSeconds"), dto.get("remSleepSeconds"),
+             dto.get("awakeSleepSeconds"), overall),
+        )
+        count += 1
+    conn.commit()
+    return count
+
+
 def ingest_training_readiness(conn: sqlite3.Connection, athlete_id: str, data: dict) -> int:
     count = 0
     for date, entries in data.items():
