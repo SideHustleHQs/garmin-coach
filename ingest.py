@@ -137,14 +137,20 @@ def ingest_body_battery(conn: sqlite3.Connection, athlete_id: str, data: list) -
     for row in data:
         if row is None:
             continue
+        levels = [v[1] for v in (row.get("bodyBatteryValuesArray") or []) if v and v[1] is not None]
+        level_current = levels[-1] if levels else None
+        level_high = max(levels) if levels else None
+        level_low = min(levels) if levels else None
         conn.execute(
             """
-            INSERT INTO body_battery (athlete_id, date, charged, drained)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO body_battery (athlete_id, date, charged, drained, level_current, level_high, level_low)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(athlete_id, date) DO UPDATE SET
-                charged=excluded.charged, drained=excluded.drained
+                charged=excluded.charged, drained=excluded.drained,
+                level_current=excluded.level_current, level_high=excluded.level_high, level_low=excluded.level_low
             """,
-            (athlete_id, row.get("date"), row.get("charged"), row.get("drained")),
+            (athlete_id, row.get("date"), row.get("charged"), row.get("drained"),
+             level_current, level_high, level_low),
         )
         count += 1
     conn.commit()
