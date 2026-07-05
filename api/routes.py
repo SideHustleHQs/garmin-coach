@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException
 
 import coach_rules
 import db as db_module
+import metrics
 
 router = APIRouter(prefix="/api")
 
@@ -185,6 +186,39 @@ def get_home(athlete_id: str) -> dict[str, Any]:
                 "duiding": coach_rules.duiding_load({"acwr": load["acwr"] if load else None}),
             },
             "last_run": last_run,
+        }
+    finally:
+        if db_module.use_postgres():
+            conn.close()
+
+
+@router.get("/athlete/{athlete_id}/fitness")
+def get_fitness(athlete_id: str) -> dict[str, Any]:
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+        vo2 = _exec(conn, "SELECT date, vo2max FROM vo2max WHERE athlete_id=? ORDER BY date", (athlete_id,)).fetchall()
+        rest = _exec(conn,
+            """SELECT date, resting_hr FROM daily_heart_rates
+               WHERE athlete_id=? AND resting_hr IS NOT NULL ORDER BY date""",
+            (athlete_id,)).fetchall()
+        runs = _exec(conn,
+            """SELECT date, distance_m, duration_s, avg_hr FROM activities
+               WHERE athlete_id=? AND type_key='running' AND distance_m > 0 ORDER BY date""",
+            (athlete_id,)).fetchall()
+        pace_trend = metrics.pace_at_hr([dict(r) for r in runs])
+        vo2_vals = [r["vo2max"] for r in vo2 if r["vo2max"] is not None]
+        if len(vo2_vals) < 2:
+            duiding = "Nog te weinig data voor een fitheidstrend."
+        elif vo2_vals[-1] > vo2_vals[0]:
+            duiding = "Je VO₂max stijgt — je aerobe motor wordt sterker."
+        else:
+            duiding = "Je fitheid is stabiel."
+        return {
+            "vo2max_trend": [{"date": r["date"], "vo2max": r["vo2max"]} for r in vo2],
+            "resting_hr_trend": [{"date": r["date"], "resting_hr": r["resting_hr"]} for r in rest],
+            "pace_at_hr": pace_trend,
+            "duiding": duiding,
         }
     finally:
         if db_module.use_postgres():
