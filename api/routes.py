@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+import coach_rules
 import db as db_module
 
 router = APIRouter(prefix="/api")
@@ -102,6 +103,88 @@ def get_hero(athlete_id: str) -> dict[str, Any]:
             ),
             "predicted_16k_pace_s_per_km": predicted_pace,
             "predicted_16k_time_s": predicted_time_s,
+        }
+    finally:
+        if db_module.use_postgres():
+            conn.close()
+
+
+@router.get("/athlete/{athlete_id}/home")
+def get_home(athlete_id: str) -> dict[str, Any]:
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+
+        readiness = _exec(conn,
+            "SELECT score, level FROM training_readiness WHERE athlete_id=? ORDER BY date DESC LIMIT 1",
+            (athlete_id,)).fetchone()
+        hrv = _exec(conn,
+            "SELECT last_night_avg FROM hrv WHERE athlete_id=? ORDER BY date DESC LIMIT 1",
+            (athlete_id,)).fetchone()
+        sleep = _exec(conn,
+            "SELECT duration_s FROM sleep WHERE athlete_id=? ORDER BY date DESC LIMIT 1",
+            (athlete_id,)).fetchone()
+        bb = _exec(conn,
+            "SELECT level_current FROM body_battery WHERE athlete_id=? ORDER BY date DESC LIMIT 1",
+            (athlete_id,)).fetchone()
+        vo2 = _exec(conn,
+            "SELECT vo2max FROM vo2max WHERE athlete_id=? ORDER BY date DESC LIMIT 1",
+            (athlete_id,)).fetchone()
+        rest = _exec(conn,
+            "SELECT resting_hr FROM daily_heart_rates WHERE athlete_id=? AND resting_hr IS NOT NULL ORDER BY date DESC LIMIT 1",
+            (athlete_id,)).fetchone()
+        load = _exec(conn,
+            "SELECT acwr, acwr_status FROM training_load_balance WHERE athlete_id=? ORDER BY date DESC LIMIT 1",
+            (athlete_id,)).fetchone()
+        last = _exec(conn,
+            """SELECT date, name, activity_id, distance_m, duration_s, avg_hr,
+                      hr_zone_1_s, hr_zone_2_s, hr_zone_3_s, hr_zone_4_s, hr_zone_5_s
+               FROM activities WHERE athlete_id=? AND type_key='running' AND distance_m > 0
+               ORDER BY date DESC LIMIT 1""",
+            (athlete_id,)).fetchone()
+
+        readiness_score = readiness["score"] if readiness else None
+        last_run = None
+        if last:
+            dist_km = (last["distance_m"] or 0) / 1000
+            dur_s = last["duration_s"] or 0
+            splits = _exec(conn,
+                """SELECT distance_m, duration_s FROM activity_splits
+                   WHERE athlete_id=? AND activity_id=? ORDER BY split_num""",
+                (athlete_id, last["activity_id"])).fetchall()
+            splits_pace = [
+                round(s["duration_s"] / (s["distance_m"] / 1000), 1)
+                for s in splits if (s["distance_m"] or 0) > 0 and (s["duration_s"] or 0) > 0
+            ]
+            last_run = {
+                "date": last["date"], "activity_id": last["activity_id"], "name": last["name"],
+                "distance_km": round(dist_km, 2),
+                "avg_pace_s_per_km": round(dur_s / dist_km, 1) if dist_km > 0 else None,
+                "avg_hr": last["avg_hr"],
+                "zones": {"z1": last["hr_zone_1_s"], "z2": last["hr_zone_2_s"], "z3": last["hr_zone_3_s"],
+                          "z4": last["hr_zone_4_s"], "z5": last["hr_zone_5_s"]},
+                "duiding": coach_rules.duiding_run({"splits_pace": splits_pace, "avg_hr": last["avg_hr"]}),
+            }
+
+        return {
+            "readiness": {
+                "score": readiness_score,
+                "level": readiness["level"] if readiness else None,
+                "hrv": hrv["last_night_avg"] if hrv else None,
+                "sleep_s": sleep["duration_s"] if sleep else None,
+                "body_battery": bb["level_current"] if bb else None,
+                "duiding": coach_rules.duiding_readiness({"score": readiness_score}),
+            },
+            "fitness": {
+                "vo2max": vo2["vo2max"] if vo2 else None,
+                "resting_hr": rest["resting_hr"] if rest else None,
+            },
+            "load": {
+                "acwr": load["acwr"] if load else None,
+                "acwr_status": load["acwr_status"] if load else None,
+                "duiding": coach_rules.duiding_load({"acwr": load["acwr"] if load else None}),
+            },
+            "last_run": last_run,
         }
     finally:
         if db_module.use_postgres():
