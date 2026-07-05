@@ -20,4 +20,6 @@ export const api = {
   runEfficiency:   (id) => get(`/athlete/${id}/run_efficiency`),
   attentionPoints: (id) => get(`/athlete/${id}/attention_points`),
   splits:          (id, actId) => get(`/athlete/${id}/activity/${actId}/splits`),
+  home:            (id) => get(`/athlete/${id}/home`),
+  fitness:         (id) => get(`/athlete/${id}/fitness`),
 }

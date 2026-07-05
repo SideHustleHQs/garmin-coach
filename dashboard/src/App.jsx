@@ -1,123 +1,60 @@
 import { useState, useEffect } from 'react'
 import './theme.css'
 import { api } from './api'
-import GoalBanner from './components/GoalBanner'
-import AttentionPoints from './components/AttentionPoints'
-import HeroRow from './components/HeroRow'
-import TrainingLoad from './components/TrainingLoad'
-import WeekVolume from './components/WeekVolume'
-import TempoTrend from './components/TempoTrend'
-import ZoneDistribution from './components/ZoneDistribution'
-import RunEfficiency from './components/RunEfficiency'
-import VO2MaxTrend from './components/VO2MaxTrend'
-import RecentRuns from './components/RecentRuns'
-import SplitsPanel from './components/SplitsPanel'
-import DailyStats from './components/DailyStats'
-import RecoveryStrip from './components/RecoveryStrip'
-
-const PANEL_COMPONENTS = {
-  GoalBanner, AttentionPoints, HeroRow, TrainingLoad,
-  WeekVolume, TempoTrend, ZoneDistribution, RunEfficiency,
-  VO2MaxTrend, RecentRuns, SplitsPanel, DailyStats, RecoveryStrip,
-}
-
-function AthleteTab({ athleteId }) {
-  const [data, setData] = useState({})
-  const [panels, setPanels] = useState([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    async function load() {
-      setLoading(true)
-      try {
-        const [athletes, hero, runs, weekVol, tempo, zones, vo2, daily, recovery,
-               trainingLoad, runEfficiency, attentionPoints] = await Promise.all([
-          api.athletes(),
-          api.hero(athleteId),
-          api.runs(athleteId),
-          api.weeklyVolume(athleteId),
-          api.tempoTrend(athleteId),
-          api.zoneDist(athleteId),
-          api.vo2maxTrend(athleteId),
-          api.dailyStats(athleteId),
-          api.recovery(athleteId),
-          api.trainingLoad(athleteId),
-          api.runEfficiency(athleteId),
-          api.attentionPoints(athleteId),
-        ])
-
-        const athlete = athletes.find(a => a.id === athleteId) || {}
-        setPanels(athlete.panels || Object.keys(PANEL_COMPONENTS))
-
-        const latestRun = runs[0]
-        const splits = latestRun
-          ? await api.splits(athleteId, latestRun.activity_id).catch(() => [])
-          : []
-
-        setData({ hero, runs, weekVol, tempo, zones, vo2, daily, recovery,
-                  trainingLoad, runEfficiency, attentionPoints, splits })
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
-  }, [athleteId])
-
-  if (loading) return <div style={{ padding: 40, color: 'var(--text-2)' }}>Laden…</div>
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {panels.map(name => {
-        const Comp = PANEL_COMPONENTS[name]
-        if (!Comp) return null
-        return <Comp key={name} athleteId={athleteId} data={data} />
-      })}
-    </div>
-  )
-}
+import TabBar from './ui/TabBar'
+import AthleteSwitcher from './ui/AthleteSwitcher'
+import CountdownChip from './ui/CountdownChip'
+import Home from './screens/Home'
+import RunDetail from './screens/RunDetail'
+import FitnessDetail from './screens/FitnessDetail'
+import LoadDetail from './screens/LoadDetail'
+import RunsList from './screens/RunsList'
+import Schema from './screens/Schema'
+import Delen from './screens/Delen'
 
 export default function App() {
   const [athletes, setAthletes] = useState([])
-  const [activeId, setActiveId] = useState(null)
+  const [athleteId, setAthleteId] = useState(null)
+  const [screen, setScreen] = useState('home')
+  const [runId, setRunId] = useState(null)
 
   useEffect(() => {
     api.athletes().then(list => {
       setAthletes(list)
-      if (list.length > 0) setActiveId(list[0].id)
-    })
+      if (list.length) setAthleteId(list.find(a => a.id === 'rowan')?.id || list[0].id)
+    }).catch(() => setAthletes([]))
   }, [])
 
+  function nav(s) { setScreen(s); setRunId(null) }
+  function openRun(id) { setRunId(id); setScreen('run') }
+
+  if (!athleteId) return <div style={{ padding: 24, color: 'var(--faint)' }}>Laden…</div>
+  const athlete = athletes.find(a => a.id === athleteId) || {}
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-base)' }}>
-      <div style={{
-        background: 'var(--bg-card)', borderBottom: '1px solid var(--border)',
-        padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 24,
-      }}>
-        <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-1)' }}>
-          🏃 Garmin Coach
-        </span>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {athletes.map(a => (
-            <button
-              key={a.id}
-              onClick={() => setActiveId(a.id)}
-              style={{
-                padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                background: activeId === a.id ? 'var(--accent)' : 'var(--bg-card2)',
-                color: 'var(--text-1)', fontSize: 13, fontWeight: 600,
-                outline: 'none',
-              }}
-              onFocus={e => e.currentTarget.style.boxShadow = '0 0 0 2px var(--accent)'}
-              onBlur={e => e.currentTarget.style.boxShadow = 'none'}
-            >
-              {a.display_name}
-            </button>
-          ))}
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div style={{ padding: '18px 16px 12px', borderBottom: '1px solid var(--line)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h1 style={{ fontSize: 18, fontWeight: 600 }}>Hoi, {athlete.display_name}</h1>
+            <p style={{ fontSize: 12, color: 'var(--faint)', marginTop: 2 }}>marathon-coach</p>
+          </div>
+          <CountdownChip weeks={null} label="wk tot race" />
         </div>
+        <AthleteSwitcher athletes={athletes} current={athleteId} onSwitch={setAthleteId} />
       </div>
-      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 16px' }}>
-        {activeId && <AthleteTab athleteId={activeId} />}
+
+      <div style={{ flex: 1, padding: 16 }}>
+        {screen === 'home' && <Home athleteId={athleteId} onOpenRun={openRun} onNav={nav} />}
+        {screen === 'run' && <RunDetail athleteId={athleteId} runId={runId} onBack={() => nav('home')} />}
+        {screen === 'fitness' && <FitnessDetail athleteId={athleteId} onBack={() => nav('home')} />}
+        {screen === 'load' && <LoadDetail athleteId={athleteId} onBack={() => nav('home')} />}
+        {screen === 'runs' && <RunsList athleteId={athleteId} onOpenRun={openRun} />}
+        {screen === 'schema' && <Schema />}
+        {screen === 'delen' && <Delen athlete={athlete} />}
       </div>
+
+      <TabBar current={screen} onNav={nav} />
     </div>
   )
 }

@@ -228,3 +228,12 @@ def test_home_endpoint_shape():
 def test_home_endpoint_404_unknown_athlete():
     client = TestClient(app)
     assert client.get("/api/athlete/nobody/home").status_code == 404
+
+
+def test_fitness_endpoint_shape():
+    client = TestClient(app)
+    r = client.get("/api/athlete/vriendin/fitness")
+    assert r.status_code == 200
+    body = r.json()
+    assert set(["vo2max_trend", "resting_hr_trend", "pace_at_hr", "duiding"]).issubset(body.keys())
+    assert isinstance(body["pace_at_hr"], list)
