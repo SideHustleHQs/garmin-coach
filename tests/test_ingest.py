@@ -165,6 +165,22 @@ def test_ingest_body_battery_null_ok():
     p.unlink()
 
 
+def test_ingest_body_battery_derives_level():
+    conn = get_conn(_new_db())
+    upsert_athlete(conn, "rowan", "Rowan", [])
+    data = [{
+        "date": "2026-07-02", "charged": 70.0, "drained": 35.0,
+        "bodyBatteryValuesArray": [[1, 40], [2, 55], [3, None], [4, 82], [5, 61]],
+    }]
+    ingest_body_battery(conn, "rowan", data)
+    row = conn.execute(
+        "SELECT level_current, level_high, level_low FROM body_battery WHERE athlete_id='rowan' AND date='2026-07-02'"
+    ).fetchone()
+    assert row["level_current"] == 61
+    assert row["level_high"] == 82
+    assert row["level_low"] == 40
+
+
 def test_ingest_training_readiness():
     p = make_tmp_db()
     conn = get_conn(p)
