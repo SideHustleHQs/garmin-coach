@@ -265,6 +265,31 @@ def test_ingest_activity_splits():
     p.unlink()
 
 
+def _new_db():
+    return make_tmp_db()
+
+
+def test_ingest_hrv_stores_summary():
+    from ingest import ingest_hrv
+    conn = get_conn(_new_db())
+    upsert_athlete(conn, "rowan", "Rowan", [])
+    data = {
+        "2026-07-02": {
+            "hrvSummary": {"calendarDate": "2026-07-02", "lastNightAvg": 70,
+                           "lastNight5MinHigh": 107, "status": "BALANCED"}
+        },
+        "2026-07-03": None,
+    }
+    n = ingest_hrv(conn, "rowan", data)
+    assert n == 1
+    row = conn.execute(
+        "SELECT last_night_avg, last_night_high, status FROM hrv WHERE athlete_id='rowan' AND date='2026-07-02'"
+    ).fetchone()
+    assert row["last_night_avg"] == 70
+    assert row["last_night_high"] == 107
+    assert row["status"] == "BALANCED"
+
+
 def test_ingest_activities_stores_new_fields():
     p = make_tmp_db()
     conn = get_conn(p)

@@ -151,6 +151,32 @@ def ingest_body_battery(conn: sqlite3.Connection, athlete_id: str, data: list) -
     return count
 
 
+def ingest_hrv(conn: sqlite3.Connection, athlete_id: str, data: dict) -> int:
+    count = 0
+    for date, row in (data or {}).items():
+        if not row:
+            continue
+        summary = row.get("hrvSummary") or {}
+        avg = summary.get("lastNightAvg")
+        if avg is None:
+            continue
+        conn.execute(
+            """
+            INSERT INTO hrv (athlete_id, date, last_night_avg, last_night_high, status)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(athlete_id, date) DO UPDATE SET
+                last_night_avg=excluded.last_night_avg,
+                last_night_high=excluded.last_night_high,
+                status=excluded.status
+            """,
+            (athlete_id, summary.get("calendarDate", date), avg,
+             summary.get("lastNight5MinHigh"), summary.get("status")),
+        )
+        count += 1
+    conn.commit()
+    return count
+
+
 def ingest_training_readiness(conn: sqlite3.Connection, athlete_id: str, data: dict) -> int:
     count = 0
     for date, entries in data.items():
