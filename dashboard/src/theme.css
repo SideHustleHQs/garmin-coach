@@ -1,64 +1,22 @@
 :root {
-  --bg-base:    #0f1117;
-  --bg-card:    #1a1f2e;
-  --bg-card2:   #242938;
-  --border:     #2d3348;
-  --accent:     #6366f1;
-  --accent2:    #22d3ee;
-  --green:      #22c55e;
-  --orange:     #f97316;
-  --red:        #ef4444;
-  --text-1:     #f1f5f9;
-  --text-2:     #94a3b8;
-  --text-3:     #64748b;
-
-  /* Zone kleuren */
-  --z1: #3b82f6;
-  --z2: #22c55e;
-  --z3: #f59e0b;
-  --z4: #f97316;
-  --z5: #ef4444;
+  --bg: #EEF1F4; --card: #FFFFFF; --ink: #151B22; --muted: #5B6673; --faint: #8A94A0;
+  --line: #E4E8EC; --accent: #FF5A1F; --accent-d: #C6410E; --accent-t: #FFEDE4;
+  --good: #1F9E6F; --good-t: #E4F4EE; --caution: #E8A33D; --hard: #E0483F;
+  --z1: #5B8DEF; --z2: #2FB79A; --z3: #7CC24B; --z4: #E8A33D; --z5: #E0483F;
+  --radius: 12px; --radius-lg: 18px;
+  --font: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, sans-serif;
 }
-
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  background: var(--bg-base);
-  color: var(--text-1);
-  font-family: 'Inter', system-ui, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
-  -webkit-tap-highlight-color: transparent;
-}
-
-button, [role="button"] {
-  touch-action: manipulation;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0F1319; --card: #171C24; --ink: #EEF1F4; --muted: #9AA4B0; --faint: #6B7480;
+    --line: #262D38; --accent: #FF6A33; --accent-d: #FFB599; --accent-t: #2A1A12;
+    --good: #35C08C; --good-t: #16281F;
   }
 }
-
-.card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
-}
-
-.label {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  color: var(--text-3);
-  margin-bottom: 4px;
-}
-
-.no-data {
-  color: var(--text-3);
-  font-style: italic;
-  font-size: 13px;
-}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font);
+  -webkit-font-smoothing: antialiased; }
+#root { max-width: 480px; margin: 0 auto; min-height: 100vh; }
+h1, h2, h3, p { margin: 0; }
+button { font-family: inherit; cursor: pointer; }
+.tnum { font-variant-numeric: tabular-nums; }
