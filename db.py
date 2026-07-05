@@ -52,13 +52,15 @@ CREATE TABLE IF NOT EXISTS vo2max (
 CREATE TABLE IF NOT EXISTS hrv (
     athlete_id TEXT NOT NULL, date TEXT NOT NULL,
     last_night_avg INTEGER, last_night_high INTEGER, status TEXT,
-    PRIMARY KEY (athlete_id, date)
+    PRIMARY KEY (athlete_id, date),
+    FOREIGN KEY (athlete_id) REFERENCES athletes(id)
 );
 CREATE TABLE IF NOT EXISTS sleep (
     athlete_id TEXT NOT NULL, date TEXT NOT NULL,
     duration_s INTEGER, deep_s INTEGER, light_s INTEGER, rem_s INTEGER, awake_s INTEGER,
     score INTEGER,
-    PRIMARY KEY (athlete_id, date)
+    PRIMARY KEY (athlete_id, date),
+    FOREIGN KEY (athlete_id) REFERENCES athletes(id)
 );
 CREATE TABLE IF NOT EXISTS training_load_balance (
     athlete_id TEXT NOT NULL, date TEXT NOT NULL,
