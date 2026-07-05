@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from db import get_conn, init_db
+import db as db_module
 
 
 def make_tmp_db():
@@ -355,3 +356,21 @@ def test_ingest_activities_stores_new_fields():
     assert row["bb_cost"] == -9
     assert row["avg_power"] == 248.0
     p.unlink()
+
+
+def test_run_ingest_loads_hrv_and_sleep(tmp_path):
+    import json as _json
+    from ingest import run_ingest
+    out = tmp_path / "rowan"
+    out.mkdir()
+    (out / "hrv.json").write_text(_json.dumps({
+        "2026-07-02": {"hrvSummary": {"calendarDate": "2026-07-02", "lastNightAvg": 65, "status": "BALANCED"}}
+    }))
+    (out / "sleep.json").write_text(_json.dumps({
+        "2026-07-02": {"dailySleepDTO": {"sleepTimeSeconds": 25200, "sleepScores": {"overall": {"value": 80}}}}
+    }))
+    db_module.DB_PATH = _new_db()
+    run_ingest("rowan", "Rowan", out)
+    conn = get_conn(db_module.DB_PATH)
+    assert conn.execute("SELECT COUNT(*) c FROM hrv WHERE athlete_id='rowan'").fetchone()["c"] == 1
+    assert conn.execute("SELECT COUNT(*) c FROM sleep WHERE athlete_id='rowan'").fetchone()["c"] == 1

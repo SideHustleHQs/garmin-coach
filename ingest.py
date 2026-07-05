@@ -6,7 +6,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from db import DB_PATH, get_conn, init_db
+import db
+from db import get_conn, init_db
 
 
 def upsert_athlete(conn: sqlite3.Connection, athlete_id: str, display_name: str, panels: list) -> None:
@@ -374,8 +375,8 @@ def ingest_activity_splits(conn: sqlite3.Connection, athlete_id: str, activity_i
 
 
 def run_ingest(athlete_id: str, display_name: str, output_dir: Path) -> None:
-    init_db()
-    conn = get_conn()
+    init_db(db.DB_PATH)
+    conn = get_conn(db.DB_PATH)
 
     default_panels = [
         "GoalBanner", "AttentionPoints", "HeroRow", "TrainingLoad",
@@ -405,6 +406,12 @@ def run_ingest(athlete_id: str, display_name: str, output_dir: Path) -> None:
     tr = load("training_readiness.json") or {}
     print(f"  training_readiness: {ingest_training_readiness(conn, athlete_id, tr)}")
 
+    hrv = load("hrv.json") or {}
+    print(f"  hrv: {ingest_hrv(conn, athlete_id, hrv)}")
+
+    sleep = load("sleep.json") or {}
+    print(f"  sleep: {ingest_sleep(conn, athlete_id, sleep)}")
+
     ts = load("training_status.json") or {}
     print(f"  vo2max: {ingest_vo2max_from_training_status(conn, athlete_id, ts)}")
     print(f"  training_load_balance: {ingest_training_load_balance(conn, athlete_id, ts)}")
@@ -419,7 +426,7 @@ def run_ingest(athlete_id: str, display_name: str, output_dir: Path) -> None:
             print(f"  WARNING: Skipped {sf.name}: {e}", file=sys.stderr)
     print(f"  activity_splits: {total_splits} laps over {len(splits_files)} runs")
 
-    print(f"\nDone → {DB_PATH}")
+    print(f"\nDone → {db.DB_PATH}")
 
 
 if __name__ == "__main__":
