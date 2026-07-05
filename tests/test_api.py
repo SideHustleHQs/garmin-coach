@@ -213,3 +213,18 @@ def test_runs_include_training_load():
     runs = r.json()
     assert "training_load" in runs[0]
     assert "activity_id" in runs[0]
+
+
+def test_home_endpoint_shape():
+    client = TestClient(app)
+    r = client.get("/api/athlete/vriendin/home")
+    assert r.status_code == 200
+    body = r.json()
+    assert set(["readiness", "fitness", "load", "last_run"]).issubset(body.keys())
+    assert "duiding" in body["readiness"]
+    assert "duiding" in body["load"]
+
+
+def test_home_endpoint_404_unknown_athlete():
+    client = TestClient(app)
+    assert client.get("/api/athlete/nobody/home").status_code == 404

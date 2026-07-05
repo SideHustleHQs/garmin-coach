@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS daily_heart_rates (
 );
 CREATE TABLE IF NOT EXISTS body_battery (
     athlete_id TEXT NOT NULL, date TEXT NOT NULL, charged REAL, drained REAL,
+    level_current INTEGER, level_high INTEGER, level_low INTEGER,
     PRIMARY KEY (athlete_id, date), FOREIGN KEY (athlete_id) REFERENCES athletes(id)
 );
 CREATE TABLE IF NOT EXISTS training_readiness (
@@ -47,6 +48,19 @@ CREATE TABLE IF NOT EXISTS training_readiness (
 CREATE TABLE IF NOT EXISTS vo2max (
     athlete_id TEXT NOT NULL, date TEXT NOT NULL, vo2max REAL,
     PRIMARY KEY (athlete_id, date), FOREIGN KEY (athlete_id) REFERENCES athletes(id)
+);
+CREATE TABLE IF NOT EXISTS hrv (
+    athlete_id TEXT NOT NULL, date TEXT NOT NULL,
+    last_night_avg INTEGER, last_night_high INTEGER, status TEXT,
+    PRIMARY KEY (athlete_id, date),
+    FOREIGN KEY (athlete_id) REFERENCES athletes(id)
+);
+CREATE TABLE IF NOT EXISTS sleep (
+    athlete_id TEXT NOT NULL, date TEXT NOT NULL,
+    duration_s INTEGER, deep_s INTEGER, light_s INTEGER, rem_s INTEGER, awake_s INTEGER,
+    score INTEGER,
+    PRIMARY KEY (athlete_id, date),
+    FOREIGN KEY (athlete_id) REFERENCES athletes(id)
 );
 CREATE TABLE IF NOT EXISTS training_load_balance (
     athlete_id TEXT NOT NULL, date TEXT NOT NULL,
@@ -93,6 +107,7 @@ CREATE TABLE IF NOT EXISTS daily_heart_rates (
 );
 CREATE TABLE IF NOT EXISTS body_battery (
     athlete_id TEXT NOT NULL, date TEXT NOT NULL, charged REAL, drained REAL,
+    level_current INTEGER, level_high INTEGER, level_low INTEGER,
     PRIMARY KEY (athlete_id, date)
 );
 CREATE TABLE IF NOT EXISTS training_readiness (
@@ -101,6 +116,17 @@ CREATE TABLE IF NOT EXISTS training_readiness (
 );
 CREATE TABLE IF NOT EXISTS vo2max (
     athlete_id TEXT NOT NULL, date TEXT NOT NULL, vo2max REAL,
+    PRIMARY KEY (athlete_id, date)
+);
+CREATE TABLE IF NOT EXISTS hrv (
+    athlete_id TEXT NOT NULL, date TEXT NOT NULL,
+    last_night_avg INTEGER, last_night_high INTEGER, status TEXT,
+    PRIMARY KEY (athlete_id, date)
+);
+CREATE TABLE IF NOT EXISTS sleep (
+    athlete_id TEXT NOT NULL, date TEXT NOT NULL,
+    duration_s INTEGER, deep_s INTEGER, light_s INTEGER, rem_s INTEGER, awake_s INTEGER,
+    score INTEGER,
     PRIMARY KEY (athlete_id, date)
 );
 CREATE TABLE IF NOT EXISTS training_load_balance (
@@ -130,6 +156,12 @@ ACTIVITY_NEW_COLUMNS = [
     ("aerobic_effect_msg",    "TEXT"),
     ("training_effect_label", "TEXT"),
     ("avg_power",             "REAL"),
+]
+
+BODY_BATTERY_NEW_COLUMNS = [
+    ("level_current", "INTEGER"),
+    ("level_high", "INTEGER"),
+    ("level_low", "INTEGER"),
 ]
 
 
@@ -176,6 +208,7 @@ def _init_sqlite(path: Path) -> None:
     with get_conn(path) as conn:
         conn.executescript(SCHEMA_SQLITE)
     _migrate_activities(path)
+    _migrate_body_battery(path)
 
 
 def _migrate_activities(path: Path) -> None:
@@ -184,4 +217,13 @@ def _migrate_activities(path: Path) -> None:
         for col, col_type in ACTIVITY_NEW_COLUMNS:
             if col not in existing:
                 conn.execute(f"ALTER TABLE activities ADD COLUMN {col} {col_type}")
+        conn.commit()
+
+
+def _migrate_body_battery(path: Path) -> None:
+    with get_conn(path) as conn:
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(body_battery)").fetchall()}
+        for col, col_type in BODY_BATTERY_NEW_COLUMNS:
+            if col not in existing:
+                conn.execute(f"ALTER TABLE body_battery ADD COLUMN {col} {col_type}")
         conn.commit()

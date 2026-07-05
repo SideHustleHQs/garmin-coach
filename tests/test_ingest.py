@@ -5,6 +5,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from db import get_conn, init_db
+import db as db_module
 
 
 def make_tmp_db():
@@ -26,6 +27,7 @@ def test_schema_creates_all_tables():
         "daily_heart_rates", "body_battery",
         "training_readiness", "vo2max",
         "training_load_balance", "activity_splits",
+        "hrv", "sleep",
     }
     p.unlink()
 
@@ -164,6 +166,22 @@ def test_ingest_body_battery_null_ok():
     p.unlink()
 
 
+def test_ingest_body_battery_derives_level():
+    conn = get_conn(_new_db())
+    upsert_athlete(conn, "rowan", "Rowan", [])
+    data = [{
+        "date": "2026-07-02", "charged": 70.0, "drained": 35.0,
+        "bodyBatteryValuesArray": [[1, 40], [2, 55], [3, None], [4, 82], [5, 61]],
+    }]
+    ingest_body_battery(conn, "rowan", data)
+    row = conn.execute(
+        "SELECT level_current, level_high, level_low FROM body_battery WHERE athlete_id='rowan' AND date='2026-07-02'"
+    ).fetchone()
+    assert row["level_current"] == 61
+    assert row["level_high"] == 82
+    assert row["level_low"] == 40
+
+
 def test_ingest_training_readiness():
     p = make_tmp_db()
     conn = get_conn(p)
@@ -265,6 +283,55 @@ def test_ingest_activity_splits():
     p.unlink()
 
 
+def _new_db():
+    return make_tmp_db()
+
+
+def test_ingest_hrv_stores_summary():
+    from ingest import ingest_hrv
+    conn = get_conn(_new_db())
+    upsert_athlete(conn, "rowan", "Rowan", [])
+    data = {
+        "2026-07-02": {
+            "hrvSummary": {"calendarDate": "2026-07-02", "lastNightAvg": 70,
+                           "lastNight5MinHigh": 107, "status": "BALANCED"}
+        },
+        "2026-07-03": None,
+    }
+    n = ingest_hrv(conn, "rowan", data)
+    assert n == 1
+    row = conn.execute(
+        "SELECT last_night_avg, last_night_high, status FROM hrv WHERE athlete_id='rowan' AND date='2026-07-02'"
+    ).fetchone()
+    assert row["last_night_avg"] == 70
+    assert row["last_night_high"] == 107
+    assert row["status"] == "BALANCED"
+
+
+def test_ingest_sleep_stores_durations_and_score():
+    from ingest import ingest_sleep
+    conn = get_conn(_new_db())
+    upsert_athlete(conn, "rowan", "Rowan", [])
+    data = {
+        "2026-07-02": {
+            "dailySleepDTO": {
+                "sleepTimeSeconds": 27720, "deepSleepSeconds": 5400,
+                "lightSleepSeconds": 16200, "remSleepSeconds": 5400, "awakeSleepSeconds": 720,
+                "sleepScores": {"overall": {"value": 82}},
+            }
+        },
+        "2026-07-03": {"dailySleepDTO": {"sleepTimeSeconds": None}},
+    }
+    n = ingest_sleep(conn, "rowan", data)
+    assert n == 1
+    row = conn.execute(
+        "SELECT duration_s, deep_s, score FROM sleep WHERE athlete_id='rowan' AND date='2026-07-02'"
+    ).fetchone()
+    assert row["duration_s"] == 27720
+    assert row["deep_s"] == 5400
+    assert row["score"] == 82
+
+
 def test_ingest_activities_stores_new_fields():
     p = make_tmp_db()
     conn = get_conn(p)
@@ -289,3 +356,21 @@ def test_ingest_activities_stores_new_fields():
     assert row["bb_cost"] == -9
     assert row["avg_power"] == 248.0
     p.unlink()
+
+
+def test_run_ingest_loads_hrv_and_sleep(tmp_path):
+    import json as _json
+    from ingest import run_ingest
+    out = tmp_path / "rowan"
+    out.mkdir()
+    (out / "hrv.json").write_text(_json.dumps({
+        "2026-07-02": {"hrvSummary": {"calendarDate": "2026-07-02", "lastNightAvg": 65, "status": "BALANCED"}}
+    }))
+    (out / "sleep.json").write_text(_json.dumps({
+        "2026-07-02": {"dailySleepDTO": {"sleepTimeSeconds": 25200, "sleepScores": {"overall": {"value": 80}}}}
+    }))
+    db_module.DB_PATH = _new_db()
+    run_ingest("rowan", "Rowan", out)
+    conn = get_conn(db_module.DB_PATH)
+    assert conn.execute("SELECT COUNT(*) c FROM hrv WHERE athlete_id='rowan'").fetchone()["c"] == 1
+    assert conn.execute("SELECT COUNT(*) c FROM sleep WHERE athlete_id='rowan'").fetchone()["c"] == 1

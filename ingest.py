@@ -6,7 +6,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from db import DB_PATH, get_conn, init_db
+import db
+from db import get_conn, init_db
 
 
 def upsert_athlete(conn: sqlite3.Connection, athlete_id: str, display_name: str, panels: list) -> None:
@@ -137,14 +138,75 @@ def ingest_body_battery(conn: sqlite3.Connection, athlete_id: str, data: list) -
     for row in data:
         if row is None:
             continue
+        levels = [v[1] for v in (row.get("bodyBatteryValuesArray") or []) if v and v[1] is not None]
+        level_current = levels[-1] if levels else None
+        level_high = max(levels) if levels else None
+        level_low = min(levels) if levels else None
         conn.execute(
             """
-            INSERT INTO body_battery (athlete_id, date, charged, drained)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO body_battery (athlete_id, date, charged, drained, level_current, level_high, level_low)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(athlete_id, date) DO UPDATE SET
-                charged=excluded.charged, drained=excluded.drained
+                charged=excluded.charged, drained=excluded.drained,
+                level_current=excluded.level_current, level_high=excluded.level_high, level_low=excluded.level_low
             """,
-            (athlete_id, row.get("date"), row.get("charged"), row.get("drained")),
+            (athlete_id, row.get("date"), row.get("charged"), row.get("drained"),
+             level_current, level_high, level_low),
+        )
+        count += 1
+    conn.commit()
+    return count
+
+
+def ingest_hrv(conn: sqlite3.Connection, athlete_id: str, data: dict) -> int:
+    count = 0
+    for date, row in (data or {}).items():
+        if not row:
+            continue
+        summary = row.get("hrvSummary") or {}
+        avg = summary.get("lastNightAvg")
+        if avg is None:
+            continue
+        conn.execute(
+            """
+            INSERT INTO hrv (athlete_id, date, last_night_avg, last_night_high, status)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(athlete_id, date) DO UPDATE SET
+                last_night_avg=excluded.last_night_avg,
+                last_night_high=excluded.last_night_high,
+                status=excluded.status
+            """,
+            (athlete_id, summary.get("calendarDate", date), avg,
+             summary.get("lastNight5MinHigh"), summary.get("status")),
+        )
+        count += 1
+    conn.commit()
+    return count
+
+
+def ingest_sleep(conn: sqlite3.Connection, athlete_id: str, data: dict) -> int:
+    count = 0
+    for date, row in (data or {}).items():
+        if not row:
+            continue
+        dto = row.get("dailySleepDTO") or {}
+        duration = dto.get("sleepTimeSeconds")
+        if not duration:
+            continue
+        scores = dto.get("sleepScores") or {}
+        overall = (scores.get("overall") or {}).get("value")
+        conn.execute(
+            """
+            INSERT INTO sleep (athlete_id, date, duration_s, deep_s, light_s, rem_s, awake_s, score)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(athlete_id, date) DO UPDATE SET
+                duration_s=excluded.duration_s, deep_s=excluded.deep_s,
+                light_s=excluded.light_s, rem_s=excluded.rem_s,
+                awake_s=excluded.awake_s, score=excluded.score
+            """,
+            (athlete_id, date, duration, dto.get("deepSleepSeconds"),
+             dto.get("lightSleepSeconds"), dto.get("remSleepSeconds"),
+             dto.get("awakeSleepSeconds"), overall),
         )
         count += 1
     conn.commit()
@@ -313,8 +375,8 @@ def ingest_activity_splits(conn: sqlite3.Connection, athlete_id: str, activity_i
 
 
 def run_ingest(athlete_id: str, display_name: str, output_dir: Path) -> None:
-    init_db()
-    conn = get_conn()
+    init_db(db.DB_PATH)
+    conn = get_conn(db.DB_PATH)
 
     default_panels = [
         "GoalBanner", "AttentionPoints", "HeroRow", "TrainingLoad",
@@ -344,6 +406,12 @@ def run_ingest(athlete_id: str, display_name: str, output_dir: Path) -> None:
     tr = load("training_readiness.json") or {}
     print(f"  training_readiness: {ingest_training_readiness(conn, athlete_id, tr)}")
 
+    hrv = load("hrv.json") or {}
+    print(f"  hrv: {ingest_hrv(conn, athlete_id, hrv)}")
+
+    sleep = load("sleep.json") or {}
+    print(f"  sleep: {ingest_sleep(conn, athlete_id, sleep)}")
+
     ts = load("training_status.json") or {}
     print(f"  vo2max: {ingest_vo2max_from_training_status(conn, athlete_id, ts)}")
     print(f"  training_load_balance: {ingest_training_load_balance(conn, athlete_id, ts)}")
@@ -358,7 +426,7 @@ def run_ingest(athlete_id: str, display_name: str, output_dir: Path) -> None:
             print(f"  WARNING: Skipped {sf.name}: {e}", file=sys.stderr)
     print(f"  activity_splits: {total_splits} laps over {len(splits_files)} runs")
 
-    print(f"\nDone → {DB_PATH}")
+    print(f"\nDone → {db.DB_PATH}")
 
 
 if __name__ == "__main__":
