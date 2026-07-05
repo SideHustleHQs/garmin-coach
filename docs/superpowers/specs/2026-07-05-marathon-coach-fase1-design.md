@@ -19,6 +19,9 @@ trainen, waar sta ik qua fitheid, bouw ik veilig op, en hoe ging mijn laatste ru
 met de mogelijkheid om op elke kaart te tikken voor volledige onderbouwing. De weergave
 is deelbaar/toonbaar aan anderen.
 
+De app is als **PWA installeerbaar op het beginscherm** (eigen icoon, full-screen),
+zodat het als een echte app voelt — gratis, zonder app-store, op de bestaande stack.
+
 ## Plaats in het geheel (niet-doelen van Fase 1)
 
 Het volledige product is een marathon-coach-platform in 4 fasen:
@@ -110,6 +113,14 @@ Pure functies die uit opgeslagen data view-klare waarden berekenen. Geen I/O, go
 - Data via `api.js` naar de nieuwe endpoints; schermen consumeren view-klare payloads.
 - Oude losse panel-componenten worden vervangen (niet uitgebreid).
 
+**6. PWA-laag** (`dashboard/`)
+- `manifest.webmanifest` (naam, icoon-set, `display: standalone`, theme/achtergrondkleur).
+- App-icoon(en) in de vereiste maten.
+- Lichte service worker: cache de app-shell (statische assets) voor snelle start + offline
+  openen; data-requests blijven network-first (Garmin-data mag niet verouderen).
+- Resultaat: "Zet op beginscherm" op iOS/Android → full-screen app met eigen icoon.
+- De publieke/deelbare URL is tegelijk de "Delen"-weergave.
+
 ### Datastroom
 
 ```
@@ -150,6 +161,8 @@ Garmin  →  garmin_test_pull.py  →  ingest.py (+ HRV, slaap, body-battery-niv
 - **Ingest:** tests dat HRV/slaap/body-battery-niveau correct upserten (bestaand
   test-patroon in `tests/`).
 - **Frontend:** minimaal — smoke-render van elk scherm met mock-payload.
+- **PWA:** handmatige check — installeerbaar op iOS (Zet op beginscherm), start full-screen
+  met eigen icoon, en de app-shell laadt offline.
 
 ## Deploy / operationeel
 
@@ -159,6 +172,9 @@ Garmin  →  garmin_test_pull.py  →  ingest.py (+ HRV, slaap, body-battery-niv
   (whoami = `sidehustlehqs`).
 - Nieuwe DB-tabellen: schema wordt idempotent aangemaakt via `init_db()` (SQLite) en
   `_init_pg()` (Postgres) — draait al bij elke sync.
+- PWA: `manifest.webmanifest` + service worker worden mee-gebuild in `dashboard/dist` en
+  meegecommit; service worker vanaf de site-root geserveerd (Vercel static). Controleren
+  dat `vercel.json` de manifest + sw + icoon-paden correct serveert.
 
 ## Openstaande kleine keuzes (tijdens bouw, geen blocker)
 
