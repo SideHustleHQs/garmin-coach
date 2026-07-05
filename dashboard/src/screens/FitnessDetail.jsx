@@ -7,12 +7,13 @@ import { paceStr } from '../format'
 
 export default function FitnessDetail({ athleteId, onBack }) {
   const [f, setF] = useState(null)
-  useEffect(() => { api.fitness(athleteId).then(setF).catch(() => setF(null)) }, [athleteId])
+  const [err, setErr] = useState(false)
+  useEffect(() => { setF(null); setErr(false); api.fitness(athleteId).then(setF).catch(() => setErr(true)) }, [athleteId])
   return (
     <div>
       <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, fontWeight: 500, marginBottom: 14 }}>‹ terug</button>
       <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Waar sta ik</h2>
-      {!f ? <p style={{ color: 'var(--faint)' }}>Laden…</p> : (
+      {err ? <p style={{ color: 'var(--hard)' }}>Kon data niet laden.</p> : !f ? <p style={{ color: 'var(--faint)' }}>Laden…</p> : (
         <>
           <Card>
             <p style={{ fontSize: 12, color: 'var(--muted)' }}>VO₂max</p>

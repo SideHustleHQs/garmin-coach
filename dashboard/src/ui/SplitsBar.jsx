@@ -1,5 +1,5 @@
 import { paceStr } from '../format'
-export default function SplitsBar({ splits }) {
+export default function SplitsBar({ splits = [] }) {
   const paces = splits.map(s => s.pace_s_per_km).filter(Boolean)
   const max = Math.max(...paces, 1)
   return (

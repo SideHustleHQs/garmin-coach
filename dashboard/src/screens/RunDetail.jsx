@@ -10,20 +10,22 @@ export default function RunDetail({ athleteId, runId, onBack }) {
   const [run, setRun] = useState(null)
   const [splits, setSplits] = useState([])
   const [eff, setEff] = useState(null)
+  const [err, setErr] = useState(false)
 
   useEffect(() => {
+    setRun(null); setErr(false)
     Promise.all([api.runs(athleteId), api.splits(athleteId, runId), api.runEfficiency(athleteId)])
       .then(([runs, sp, effs]) => {
         setRun(runs.find(r => r.activity_id === runId) || null)
         setSplits(sp)
         setEff((effs || []).find(e => e.activity_id === runId) || null)
-      }).catch(() => setRun(null))
+      }).catch(() => setErr(true))
   }, [athleteId, runId])
 
   return (
     <div>
       <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, fontWeight: 500, marginBottom: 14 }}>‹ terug</button>
-      {!run ? <p style={{ color: 'var(--faint)' }}>Laden…</p> : (
+      {err ? <p style={{ color: 'var(--hard)' }}>Kon data niet laden.</p> : !run ? <p style={{ color: 'var(--faint)' }}>Laden…</p> : (
         <>
           <h2 style={{ fontSize: 16, fontWeight: 600 }}>{run.name || 'Run'}</h2>
           <p style={{ fontSize: 12, color: 'var(--faint)', margin: '2px 0 14px' }}>{run.date}</p>

@@ -7,16 +7,18 @@ import CoachNote from '../ui/CoachNote'
 export default function LoadDetail({ athleteId, onBack }) {
   const [load, setLoad] = useState(null)
   const [vol, setVol] = useState([])
+  const [err, setErr] = useState(false)
   useEffect(() => {
+    setLoad(null); setErr(false)
     Promise.all([api.trainingLoad(athleteId), api.weeklyVolume(athleteId)])
-      .then(([l, v]) => { setLoad(l); setVol(v.slice().reverse()) }).catch(() => setLoad(null))
+      .then(([l, v]) => { setLoad(l); setVol(v.slice().reverse()) }).catch(() => setErr(true))
   }, [athleteId])
   const latest = load?.latest
   return (
     <div>
       <button onClick={onBack} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: 13, fontWeight: 500, marginBottom: 14 }}>‹ terug</button>
       <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Bouw ik veilig op</h2>
-      {!load ? <p style={{ color: 'var(--faint)' }}>Laden…</p> : (
+      {err ? <p style={{ color: 'var(--hard)' }}>Kon data niet laden.</p> : !load ? <p style={{ color: 'var(--faint)' }}>Laden…</p> : (
         <>
           <Card>
             <p style={{ fontSize: 12, color: 'var(--muted)' }}>Acute : chronische belasting (ACWR)</p>
