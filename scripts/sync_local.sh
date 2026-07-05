@@ -46,4 +46,15 @@ run_athlete() {
 log "=== sync start ==="
 run_athlete vriendin Vriendin "${GARMIN_EMAIL_VRIENDIN:-}" "${GARMIN_PASSWORD_VRIENDIN:-}"
 run_athlete rowan    Rowan    "${GARMIN_EMAIL_ROWAN:-}"    "${GARMIN_PASSWORD_ROWAN:-}"
+
+# ingest.py schrijft naar lokale SQLite; push die naar Supabase (live dashboard).
+# get_conn() is altijd SQLite, dus Postgres wordt uitsluitend hierlangs gevuld.
+if [[ -n "${DATABASE_URL:-}" ]]; then
+  log "PUSH -> Supabase..."
+  "$PY" -c "from db import init_db; init_db()" >>"$LOG" 2>&1 \
+    && "$PY" scripts/migrate_to_supabase.py >>"$LOG" 2>&1 \
+    && log "OK push naar Supabase" || log "FOUT push naar Supabase (zie log)"
+else
+  log "SKIP push: DATABASE_URL leeg (data blijft in lokale SQLite)."
+fi
 log "=== sync klaar ==="
