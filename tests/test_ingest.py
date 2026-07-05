@@ -26,6 +26,7 @@ def test_schema_creates_all_tables():
         "daily_heart_rates", "body_battery",
         "training_readiness", "vo2max",
         "training_load_balance", "activity_splits",
+        "hrv", "sleep",
     }
     p.unlink()
 
