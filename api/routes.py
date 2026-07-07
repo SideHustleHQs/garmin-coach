@@ -792,6 +792,7 @@ def adapt_plan(athlete_id: str) -> dict[str, Any]:
     try:
         _athlete_or_404(conn, athlete_id)
         today = _dt.date.today().isoformat()
+        window_end = (_dt.date.today() + _dt.timedelta(days=2)).isoformat()
         plan = _exec(conn, "SELECT goal_time_s, race_distance_km FROM training_plan WHERE athlete_id=? ORDER BY id DESC LIMIT 1", (athlete_id,)).fetchone()
         if not plan:
             return {"ok": True, "adjusted": 0}
@@ -802,8 +803,8 @@ def adapt_plan(athlete_id: str) -> dict[str, Any]:
         signals = {"readiness": rd["score"] if rd else None, "acwr": load["acwr"] if load else None,
                    "sleep_s": sl["duration_s"] if sl else None, "sleep_score": sl["score"] if sl else None,
                    "recent_quality_hit": False, "downgrade_last_48h": False}
-        # pas toekomstige/vandaag, niet-override run-dagen aan
-        rows = _exec(conn, "SELECT date, run_type, title, target_pace_s, distance_km, segments FROM planned_workout WHERE athlete_id=? AND date>=? AND user_override=0", (athlete_id, today)).fetchall()
+        # pas alleen het near-term venster (vandaag + 2 dagen) aan, niet-override run-dagen
+        rows = _exec(conn, "SELECT date, run_type, title, target_pace_s, distance_km, segments FROM planned_workout WHERE athlete_id=? AND date>=? AND date<=? AND user_override=0", (athlete_id, today, window_end)).fetchall()
         n = 0
         for r in rows:
             wo = {"run_type": r["run_type"], "title": r["title"], "target_pace_s": r["target_pace_s"],

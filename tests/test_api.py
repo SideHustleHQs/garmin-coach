@@ -293,22 +293,30 @@ def test_dashboard_404_unknown():
 
 
 def test_adapt_and_override_flow():
+    import datetime
     client = TestClient(app)
+    today = datetime.date.today().isoformat()
     body = {"race_name": "M", "race_date": "2026-10-18", "race_distance_km": 42.195,
-            "goal_time_s": 14400, "start_date": "2026-07-13", "weeks": 14,
+            "goal_time_s": 14400, "start_date": today, "weeks": 14,
             "run_days": ["mon", "thu", "sat"], "fixed_days": {"tue": "strength", "wed": "hyrox", "fri": "strength"}}
     client.post("/api/athlete/vriendin/plan", json=body)
-    # forceer lage readiness zodat adapt afschaalt
+    # origineel (nog niet aangepast) plan van week 1, voor vergelijking na revert
+    wk_before = client.get("/api/athlete/vriendin/plan/week?week=1").json()
+    orig_by_date = {d["date"]: d["run_type"] for d in wk_before}
+    # forceer lage readiness (vandaag = actuele signaal) zodat adapt afschaalt in het near-term venster
     conn = get_conn(TEST_DB)
-    conn.execute("INSERT OR REPLACE INTO training_readiness (athlete_id,date,score,level) VALUES ('vriendin','2026-07-13',30,'LOW')")
+    conn.execute("INSERT OR REPLACE INTO training_readiness (athlete_id,date,score,level) VALUES ('vriendin',?,30,'LOW')", (today,))
     conn.commit()
     r = client.post("/api/athlete/vriendin/adapt")
     assert r.status_code == 200
     wk = client.get("/api/athlete/vriendin/plan/week?week=1").json()
     q = next((d for d in wk if d.get("is_adjusted")), None)
-    assert q is not None and q["run_type"] == "easy"        # effectieve = aangepast
-    # override → origineel terug
+    assert q is not None
+    assert q["run_type"] in ("easy", "rest")        # effectieve = aangepast (quality/long afgeschaald)
+    # override → origineel (niet-aangepast) type terug
     client.post(f"/api/athlete/vriendin/workout/{q['date']}/override")
     wk2 = client.get("/api/athlete/vriendin/plan/week?week=1").json()
     d2 = next(d for d in wk2 if d["date"] == q["date"])
-    assert d2["run_type"] == "quality" and d2.get("user_override") is True
+    assert d2.get("is_adjusted") is False
+    assert d2["run_type"] == orig_by_date[q["date"]]
+    assert d2.get("user_override") is True
