@@ -86,3 +86,78 @@ def assemble_week(run_days: list[str], fixed_days: dict, long_km: float,
         else:
             days.append({"weekday": wd, "day_type": "rest", "run_type": None, "title": "Rust"})
     return days
+
+
+import datetime as _dt
+
+
+def _quality_spec(phase: str, paces: dict) -> dict:
+    """Segments + titel voor de kwaliteitsrun per fase."""
+    if phase == "base":
+        return {"type": "tempo", "title": "Tempo-run 6 km", "segments": [
+            {"label": "Inlopen 1,5 km", "distance_m": 1500, "target_pace_s": paces["easy"]},
+            {"label": "3 km tempo", "distance_m": 3000, "target_pace_s": paces["tempo"]},
+            {"label": "Uitlopen 1,5 km", "distance_m": 1500, "target_pace_s": paces["easy"]}]}
+    if phase == "peak":
+        return {"type": "interval", "title": "Intervallen 8 km", "segments": [
+            {"label": "Inlopen 2 km", "distance_m": 2000, "target_pace_s": paces["easy"]},
+            {"label": "5× 1 km", "reps": 5, "distance_m": 1000, "target_pace_s": paces["interval"]},
+            {"label": "tussen 400 m dribbel", "distance_m": 400, "target_pace_s": paces["easy"] + 20},
+            {"label": "Uitlopen 1,5 km", "distance_m": 1500, "target_pace_s": paces["easy"]}]}
+    return {"type": "tempo", "title": "Tempo-intervallen 8 km", "segments": [
+        {"label": "Inlopen 2 km", "distance_m": 2000, "target_pace_s": paces["easy"]},
+        {"label": "4× 1 km tempo", "reps": 4, "distance_m": 1000, "target_pace_s": paces["tempo"]},
+        {"label": "tussen 400 m dribbel", "distance_m": 400, "target_pace_s": paces["easy"] + 20},
+        {"label": "Uitlopen 1,5 km", "distance_m": 1500, "target_pace_s": paces["easy"]}]}
+
+
+def generate_plan(plan: dict, prefs: dict, fitness: dict) -> list[dict]:
+    import coach_rules
+    weeks = plan["weeks"]
+    paces = compute_paces(plan.get("goal_time_s"), plan["race_distance_km"], fitness.get("current_easy_s"))
+    peak_km = 32 if plan["race_distance_km"] > 30 else round(plan["race_distance_km"] * 1.15)
+    start_km = max(fitness.get("longest_km") or 8, round(peak_km * 0.45))
+    long_by_week = long_run_progression(weeks, start_km, peak_km)
+    start = _dt.date.fromisoformat(plan["start_date"])
+
+    rows: list[dict] = []
+    for w in range(1, weeks + 1):
+        phase = phase_for_week(w, weeks)
+        quality = _quality_spec(phase, paces)
+        easy_km = max(5, round(long_by_week[w - 1] * 0.4))
+        days = assemble_week(prefs["run_days"], prefs["fixed_days"],
+                             long_km=long_by_week[w - 1], easy_km=easy_km, quality=quality)
+        for d in days:
+            date = start + _dt.timedelta(days=(w - 1) * 7 + WEEKDAYS.index(d["weekday"]))
+            run_type = d.get("run_type")
+            if run_type == "quality":
+                segments = quality["segments"]
+                target = paces["tempo"]
+            elif run_type == "long":
+                segments = [{"label": f"Lange duurloop {round(d['distance_km'])} km",
+                             "distance_m": int(d["distance_km"] * 1000), "target_pace_s": paces["long"]}]
+                target = paces["long"]
+            elif run_type == "easy":
+                segments = [{"label": d["title"], "distance_m": int((d["distance_km"] or 0) * 1000),
+                             "target_pace_s": paces["easy"]}]
+                target = paces["easy"]
+            else:
+                segments = None
+                target = None
+            rows.append({
+                "date": date.isoformat(), "week_num": w, "phase": phase,
+                "day_type": d["day_type"], "run_type": run_type, "title": d["title"],
+                "distance_km": d.get("distance_km"), "segments": segments, "target_pace_s": target,
+                "coach_note": coach_rules.duiding_workout(run_type, phase) if run_type else None,
+            })
+    return rows
+
+
+def estimate_finish(distance_km: float, goal_time_s: int | None, fitness: dict) -> tuple[int, int]:
+    """Geschatte finishtijd-range (s). Met doeltijd: rond het doel; anders uit easy-pace."""
+    if goal_time_s:
+        center = goal_time_s
+    else:
+        easy = fitness.get("current_easy_s") or 360
+        center = round((easy - 15) * distance_km)
+    return (round(center * 0.97), round(center * 1.03))

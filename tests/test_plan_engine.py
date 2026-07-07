@@ -71,3 +71,31 @@ def test_assemble_week_places_runs_and_respects_hyrox():
     assert by["mon"]["run_type"] == "quality"
     # dagen zonder run/fixed = rest
     assert by["sun"]["day_type"] == "rest"
+
+
+from plan_engine import generate_plan, estimate_finish
+import datetime
+
+def test_generate_plan_full_shape():
+    plan = {"race_distance_km": 42.195, "goal_time_s": 14400,
+            "start_date": "2026-07-13", "weeks": 14}
+    prefs = {"run_days": ["mon", "thu", "sat"],
+             "fixed_days": {"tue": "strength", "wed": "hyrox", "fri": "strength"}}
+    fitness = {"current_easy_s": 375, "longest_km": 14}
+    rows = generate_plan(plan, prefs, fitness)
+    # 14 weken * 7 dagen = 98 dagrijen
+    assert len(rows) == 98
+    runs = [r for r in rows if r["day_type"] == "run"]
+    assert len(runs) == 14 * 3  # 3 runs/week
+    assert any(r["run_type"] == "long" for r in runs)
+    assert all("phase" in r and "date" in r for r in rows)
+    # taper aanwezig in laatste week
+    assert any(r["phase"] == "taper" for r in rows)
+    # quality-run heeft segments met doel-pace
+    q = next(r for r in runs if r["run_type"] == "quality")
+    assert q["segments"] and isinstance(q["segments"], list)
+
+def test_estimate_finish_returns_range():
+    lo, hi = estimate_finish(distance_km=42.195, goal_time_s=14400, fitness={"current_easy_s": 375})
+    assert lo < hi
+    assert isinstance(lo, int) and isinstance(hi, int)
