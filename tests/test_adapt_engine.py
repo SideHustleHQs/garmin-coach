@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from adapt_engine import adjust_day
+from adapt_engine import absorb_missed
 
 PACES = {"mp": 341, "easy": 376, "long": 361, "tempo": 316, "interval": 286}
 
@@ -41,3 +42,18 @@ def test_good_signals_no_change():
 
 def test_rest_day_never_adjusted():
     assert adjust_day({"run_type": None, "title": "Rust"}, {"readiness": 20, "acwr": 2.0}, PACES) is None
+
+def test_absorb_missed_marks_and_reschedules():
+    rows = [
+        {"date": "2026-07-13", "run_type": "quality", "done": False, "day_type": "run"},
+        {"date": "2026-07-16", "run_type": "easy", "done": True, "day_type": "run"},
+        {"date": "2026-07-18", "run_type": "long", "done": False, "day_type": "run"},
+    ]
+    out = absorb_missed(rows, today="2026-07-17")
+    by = {r["date"]: r for r in out}
+    assert by["2026-07-13"]["missed"] is True   # verleden, niet gedaan
+    assert by["2026-07-16"]["missed"] is False   # gedaan
+    assert by["2026-07-18"]["missed"] is False   # toekomst
+
+def test_absorb_missed_empty():
+    assert absorb_missed([], today="2026-07-17") == []

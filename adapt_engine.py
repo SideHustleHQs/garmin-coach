@@ -62,3 +62,14 @@ def adjust_day(workout: dict, signals: dict, paces: dict) -> dict | None:
                 "adjusted_segments": [{"label": "werk (scherper)", "target_pace_s": base - 10}],
                 "adjustment_reason": "Je bent fris en ligt voor — 10 s/km scherper."}
     return None
+
+
+def absorb_missed(rows: list[dict], today: str) -> list[dict]:
+    """Markeer verleden run-dagen zonder afgeronde activity als missed.
+    (Herplanning/verschuiven van gemiste sessies gebeurt in Plan 2 — hier alleen markeren.)"""
+    out = []
+    for r in rows:
+        r = dict(r)
+        r["missed"] = bool(r.get("day_type") == "run" and r["date"] < today and not r.get("done"))
+        out.append(r)
+    return out
