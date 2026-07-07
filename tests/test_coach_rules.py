@@ -34,3 +34,12 @@ def test_duiding_run_handles_missing_data():
     assert isinstance(duiding_run({}), str)
     assert isinstance(duiding_readiness({}), str)
     assert isinstance(duiding_load({}), str)
+
+
+from coach_rules import duiding_workout
+
+def test_duiding_workout_variants():
+    assert isinstance(duiding_workout("long", "build"), str)
+    assert "lang" in duiding_workout("long", "build").lower()
+    assert "taper" in duiding_workout("easy", "taper").lower() or "herstel" in duiding_workout("easy", "taper").lower()
+    assert isinstance(duiding_workout("quality", "peak"), str)

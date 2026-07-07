@@ -38,3 +38,15 @@ def duiding_run(run: dict) -> str:
     if hr is not None:
         return "Nette run met je hartslag onder controle."
     return "Run opgeslagen."
+
+
+def duiding_workout(run_type: str, phase: str) -> str:
+    if phase == "taper":
+        return "Taper-fase: kort en scherp, focus op herstel richting je race."
+    if run_type == "long":
+        return "Je lange duurloop bouwt de duur-uithouding die je marathon draagt."
+    if run_type == "quality":
+        return {"base": "Rustige kwaliteit om je snelheid te wekken.",
+                "build": "Tempo-werk op racepace-niveau — hier win je je tijd.",
+                "peak": "Scherpe piek-sessie op racepace, dicht bij je doel."}.get(phase, "Kwaliteitstraining.")
+    return "Rustige duurloop op easy-pace — bouwt je aerobe basis, houdt herstel hoog."
