@@ -18,3 +18,15 @@ def compute_paces(goal_time_s: int | None, distance_km: float, current_easy_s: i
         "tempo": mp - 25,
         "interval": mp - 55,
     }
+
+
+def phase_for_week(week: int, total_weeks: int) -> str:
+    """Periodiseringsfase op basis van positie in het plan (1-indexed week)."""
+    frac = week / total_weeks
+    if frac <= 0.30:
+        return "base"
+    if frac <= 0.70:
+        return "build"
+    if frac <= 0.85:
+        return "peak"
+    return "taper"

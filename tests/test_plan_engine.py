@@ -20,3 +20,17 @@ def test_compute_paces_without_goal_uses_current_easy():
     # race-pace = current_easy - 20
     assert p["mp"] == 340
     assert p["easy"] == 360
+
+
+from plan_engine import phase_for_week
+
+def test_phase_for_week_boundaries():
+    total = 14
+    assert phase_for_week(1, total) == "base"
+    assert phase_for_week(4, total) == "base"    # <=30%
+    assert phase_for_week(5, total) == "build"
+    assert phase_for_week(10, total) == "build"  # <=70%
+    assert phase_for_week(11, total) == "peak"
+    assert phase_for_week(12, total) == "peak"   # <=85%
+    assert phase_for_week(13, total) == "taper"
+    assert phase_for_week(14, total) == "taper"
