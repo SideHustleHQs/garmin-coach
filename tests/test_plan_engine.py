@@ -34,3 +34,15 @@ def test_phase_for_week_boundaries():
     assert phase_for_week(12, total) == "peak"   # <=85%
     assert phase_for_week(13, total) == "taper"
     assert phase_for_week(14, total) == "taper"
+
+
+from plan_engine import long_run_progression
+
+def test_long_run_progression_builds_cutbacks_and_tapers():
+    lr = long_run_progression(total_weeks=14, start_km=14, peak_km=32)
+    assert len(lr) == 14
+    assert lr[0] == 14                    # week 1 = start
+    assert lr[10] == 32 or lr[9] == 32    # piek ~3 wk voor eind (peak fase)
+    assert lr[13] < lr[10]                # taper: laatste week korter dan piek
+    assert lr[2] < lr[1] or lr[3] < lr[2] # cutback aanwezig in opbouw
+    assert max(lr) == 32                  # piek = peak_km
