@@ -78,6 +78,26 @@ CREATE TABLE IF NOT EXISTS activity_splits (
     PRIMARY KEY (athlete_id, activity_id, split_num),
     FOREIGN KEY (athlete_id) REFERENCES athletes(id)
 );
+CREATE TABLE IF NOT EXISTS athlete_training_prefs (
+    athlete_id TEXT PRIMARY KEY,
+    runs_per_week INTEGER, run_days TEXT, fixed_days TEXT,
+    FOREIGN KEY (athlete_id) REFERENCES athletes(id)
+);
+CREATE TABLE IF NOT EXISTS training_plan (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    athlete_id TEXT NOT NULL, race_name TEXT, race_date TEXT,
+    race_distance_km REAL, goal_time_s INTEGER, start_date TEXT,
+    weeks INTEGER, methodology TEXT DEFAULT 'periodized-v1', created_at TEXT,
+    FOREIGN KEY (athlete_id) REFERENCES athletes(id)
+);
+CREATE TABLE IF NOT EXISTS planned_workout (
+    athlete_id TEXT NOT NULL, date TEXT NOT NULL, plan_id INTEGER,
+    week_num INTEGER, phase TEXT, day_type TEXT, run_type TEXT,
+    title TEXT, distance_km REAL, segments TEXT, target_pace_s INTEGER,
+    coach_note TEXT, status TEXT DEFAULT 'planned', linked_activity_id INTEGER,
+    PRIMARY KEY (athlete_id, date),
+    FOREIGN KEY (athlete_id) REFERENCES athletes(id)
+);
 """
 
 SCHEMA_PG = """
@@ -143,6 +163,23 @@ CREATE TABLE IF NOT EXISTS activity_splits (
     athlete_id TEXT NOT NULL, activity_id BIGINT NOT NULL, split_num INTEGER NOT NULL,
     distance_m REAL, duration_s REAL, avg_hr REAL, avg_speed_mps REAL,
     PRIMARY KEY (athlete_id, activity_id, split_num)
+);
+CREATE TABLE IF NOT EXISTS athlete_training_prefs (
+    athlete_id TEXT PRIMARY KEY,
+    runs_per_week INTEGER, run_days TEXT, fixed_days TEXT
+);
+CREATE TABLE IF NOT EXISTS training_plan (
+    id SERIAL PRIMARY KEY,
+    athlete_id TEXT NOT NULL, race_name TEXT, race_date TEXT,
+    race_distance_km REAL, goal_time_s INTEGER, start_date TEXT,
+    weeks INTEGER, methodology TEXT DEFAULT 'periodized-v1', created_at TEXT
+);
+CREATE TABLE IF NOT EXISTS planned_workout (
+    athlete_id TEXT NOT NULL, date TEXT NOT NULL, plan_id INTEGER,
+    week_num INTEGER, phase TEXT, day_type TEXT, run_type TEXT,
+    title TEXT, distance_km REAL, segments TEXT, target_pace_s INTEGER,
+    coach_note TEXT, status TEXT DEFAULT 'planned', linked_activity_id INTEGER,
+    PRIMARY KEY (athlete_id, date)
 );
 """
 
