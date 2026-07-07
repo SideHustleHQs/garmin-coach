@@ -14,6 +14,7 @@ export default function WeekStrip({ days, selectedDate, onSelect }) {
               border: '1px solid var(--line)', borderRadius: 10, padding: '8px 0', cursor: 'pointer' }}>
             <p style={{ fontSize: 10, fontWeight: 600, margin: 0, color: on ? '#0F1319' : 'var(--faint)' }}>{NL[i]}</p>
             <span style={{ fontSize: 14, color: on ? '#0F1319' : color }}>{ICON[d.day_type] || '·'}</span>
+            {d.missed ? <span style={{ display: 'block', fontSize: 8, color: 'var(--faint)' }}>gemist</span> : null}
           </button>
         )
       })}

@@ -35,6 +35,10 @@ export default function Schema({ athleteId }) {
     }).catch(() => setErr(true))
   }, [plan, week, athleteId])
 
+  function revert(date) {
+    api.overrideWorkout(athleteId, date).then(() => api.planWeek(athleteId, week).then(setDays))
+  }
+
   if (err) return <p style={{ color: 'var(--hard)' }}>Kon plan niet laden.</p>
   if (plan === undefined) return <p style={{ color: 'var(--faint)' }}>Laden…</p>
   if (plan === null) return (
@@ -56,7 +60,7 @@ export default function Schema({ athleteId }) {
           style={{ background: 'none', border: 'none', color: week >= plan.weeks ? 'var(--faint)' : 'var(--muted)', fontSize: 18 }}>›</button>
       </div>
       <WeekStrip days={days} selectedDate={selected} onSelect={setSelected} />
-      <WorkoutCard workout={selectedWorkout} />
+      <WorkoutCard workout={selectedWorkout} onRevert={revert} />
     </div>
   )
 }

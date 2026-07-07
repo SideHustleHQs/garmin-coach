@@ -34,4 +34,5 @@ export const api = {
   planWeek:        (id, week) => get(`/athlete/${id}/plan/week?week=${week}`),
   workout:         (id, date) => get(`/athlete/${id}/workout/${date}`),
   registerWorkout: (id, date) => post(`/athlete/${id}/workout/${date}/register`),
+  overrideWorkout: (id, date) => post(`/athlete/${id}/workout/${date}/override`),
 }
