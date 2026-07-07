@@ -26,6 +26,9 @@ TABLES = [
     "vo2max",
     "training_load_balance",
     "activity_splits",
+    "athlete_training_prefs",
+    "training_plan",
+    "planned_workout",
 ]
 
 TABLE_PKS = {
@@ -40,6 +43,9 @@ TABLE_PKS = {
     "vo2max": ["athlete_id", "date"],
     "training_load_balance": ["athlete_id", "date"],
     "activity_splits": ["athlete_id", "activity_id", "split_num"],
+    "athlete_training_prefs": ["athlete_id"],
+    "training_plan": ["id"],
+    "planned_workout": ["athlete_id", "date"],
 }
 
 
