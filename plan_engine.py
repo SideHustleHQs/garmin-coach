@@ -51,3 +51,38 @@ def long_run_progression(total_weeks: int, start_km: float, peak_km: float) -> l
         out.append(round(km))
     out[peak_week - 1] = round(peak_km)  # verzeker exacte piek
     return out
+
+
+WEEKDAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+HARD_TYPES = {"hyrox"}
+
+
+def assemble_week(run_days: list[str], fixed_days: dict, long_km: float,
+                  easy_km: float, quality: dict) -> list[dict]:
+    """Bouw één week: lange run op laatste run-dag, quality op een run-dag die
+    NIET direct na een harde (hyrox) dag valt, easy op de rest. Fixed dagen
+    (strength/hyrox) ingevuld, overige dagen rest."""
+    long_day = run_days[-1]
+    # kandidaat-quality-dagen: run-dagen (excl. long) waarvan de vorige dag geen hard-type is
+    def prev(d):
+        return WEEKDAYS[(WEEKDAYS.index(d) - 1) % 7]
+    candidates = [d for d in run_days if d != long_day and fixed_days.get(prev(d)) not in HARD_TYPES]
+    quality_day = candidates[0] if candidates else next(d for d in run_days if d != long_day)
+
+    days = []
+    for wd in WEEKDAYS:
+        if wd == long_day:
+            days.append({"weekday": wd, "day_type": "run", "run_type": "long",
+                         "distance_km": long_km, "title": f"Lange duurloop {round(long_km)} km"})
+        elif wd == quality_day:
+            days.append({"weekday": wd, "day_type": "run", "run_type": "quality",
+                         "distance_km": None, "title": quality["title"], "quality": quality})
+        elif wd in run_days:
+            days.append({"weekday": wd, "day_type": "run", "run_type": "easy",
+                         "distance_km": easy_km, "title": f"Rustige duurloop {round(easy_km)} km"})
+        elif wd in fixed_days:
+            days.append({"weekday": wd, "day_type": fixed_days[wd], "run_type": None,
+                         "title": {"hyrox": "Hyrox", "strength": "Krachttraining"}.get(fixed_days[wd], fixed_days[wd])})
+        else:
+            days.append({"weekday": wd, "day_type": "rest", "run_type": None, "title": "Rust"})
+    return days

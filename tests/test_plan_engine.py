@@ -46,3 +46,28 @@ def test_long_run_progression_builds_cutbacks_and_tapers():
     assert lr[13] < lr[10]                # taper: laatste week korter dan piek
     assert lr[2] < lr[1] or lr[3] < lr[2] # cutback aanwezig in opbouw
     assert max(lr) == 32                  # piek = peak_km
+
+
+from plan_engine import assemble_week
+
+PREFS_ROWAN = {
+    "run_days": ["mon", "thu", "sat"],
+    "fixed_days": {"tue": "strength", "wed": "hyrox", "fri": "strength"},
+}
+
+def test_assemble_week_places_runs_and_respects_hyrox():
+    days = assemble_week(
+        run_days=PREFS_ROWAN["run_days"], fixed_days=PREFS_ROWAN["fixed_days"],
+        long_km=20, easy_km=7, quality={"type": "tempo", "title": "Tempo 8 km"},
+    )
+    by = {d["weekday"]: d for d in days}
+    assert len(days) == 7
+    assert by["wed"]["day_type"] == "hyrox"
+    assert by["tue"]["day_type"] == "strength"
+    assert by["sat"]["run_type"] == "long"          # lange run in weekend-slot
+    # thu volgt direct op hyrox(wed) → mag GEEN quality/long zijn
+    assert by["thu"]["run_type"] == "easy"
+    # quality op een run-dag die niet direct na hyrox valt (mon)
+    assert by["mon"]["run_type"] == "quality"
+    # dagen zonder run/fixed = rest
+    assert by["sun"]["day_type"] == "rest"
