@@ -255,3 +255,21 @@ def test_create_and_get_plan():
     assert g["weeks"] == 14
     assert "estimated_time_s" in g and len(g["estimated_time_s"]) == 2
     assert g["total_planned_km"] > 0
+
+
+def test_plan_week_and_workout_and_register():
+    client = TestClient(app)
+    body = {"race_name": "M", "race_date": "2026-10-18", "race_distance_km": 42.195,
+            "goal_time_s": 14400, "start_date": "2026-07-13", "weeks": 14,
+            "run_days": ["mon", "thu", "sat"],
+            "fixed_days": {"tue": "strength", "wed": "hyrox", "fri": "strength"}}
+    client.post("/api/athlete/vriendin/plan", json=body)
+    wk = client.get("/api/athlete/vriendin/plan/week?week=1").json()
+    assert len(wk) == 7
+    run_day = next(d for d in wk if d["day_type"] == "run")
+    w = client.get(f"/api/athlete/vriendin/workout/{run_day['date']}").json()
+    assert w["title"] and "segments" in w
+    reg = client.post(f"/api/athlete/vriendin/workout/{run_day['date']}/register")
+    assert reg.status_code == 200
+    wk2 = client.get("/api/athlete/vriendin/plan/week?week=1").json()
+    assert any(d["date"] == run_day["date"] and d["status"] == "done" for d in wk2)

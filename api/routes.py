@@ -615,3 +615,58 @@ def get_plan(athlete_id: str) -> dict[str, Any]:
     finally:
         if db_module.use_postgres():
             conn.close()
+
+
+def _wo_dict(r) -> dict:
+    return {"date": r["date"], "week_num": r["week_num"], "phase": r["phase"],
+            "day_type": r["day_type"], "run_type": r["run_type"], "title": r["title"],
+            "distance_km": r["distance_km"], "target_pace_s": r["target_pace_s"],
+            "coach_note": r["coach_note"], "status": r["status"],
+            "segments": json.loads(r["segments"]) if r["segments"] else None}
+
+
+@router.get("/athlete/{athlete_id}/plan/week")
+def get_plan_week(athlete_id: str, week: int = 1) -> list[dict[str, Any]]:
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+        rows = _exec(conn,
+            "SELECT * FROM planned_workout WHERE athlete_id=? AND week_num=? ORDER BY date",
+            (athlete_id, week)).fetchall()
+        return [_wo_dict(r) for r in rows]
+    finally:
+        if db_module.use_postgres():
+            conn.close()
+
+
+@router.get("/athlete/{athlete_id}/workout/{wdate}")
+def get_workout(athlete_id: str, wdate: str) -> dict[str, Any]:
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+        r = _exec(conn, "SELECT * FROM planned_workout WHERE athlete_id=? AND date=?",
+                  (athlete_id, wdate)).fetchone()
+        if not r:
+            raise HTTPException(status_code=404, detail="Geen workout op deze datum")
+        return _wo_dict(r)
+    finally:
+        if db_module.use_postgres():
+            conn.close()
+
+
+@router.post("/athlete/{athlete_id}/workout/{wdate}/register")
+def register_workout(athlete_id: str, wdate: str) -> dict[str, Any]:
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+        act = _exec(conn,
+            "SELECT activity_id FROM activities WHERE athlete_id=? AND date=? AND type_key='running' LIMIT 1",
+            (athlete_id, wdate)).fetchone()
+        _exec(conn,
+            "UPDATE planned_workout SET status='done', linked_activity_id=? WHERE athlete_id=? AND date=?",
+            (act["activity_id"] if act else None, athlete_id, wdate))
+        conn.commit()
+        return {"ok": True, "linked_activity_id": act["activity_id"] if act else None}
+    finally:
+        if db_module.use_postgres():
+            conn.close()
