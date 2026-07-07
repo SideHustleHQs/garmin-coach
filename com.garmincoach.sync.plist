@@ -8,11 +8,11 @@
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>
-        <string>/Users/rschermer/Documents/garmin-coach/scripts/sync_local.sh</string>
+        <string>/Users/rschermer/garmin-coach/scripts/sync_local.sh</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/rschermer/Documents/garmin-coach</string>
+    <string>/Users/rschermer/garmin-coach</string>
 
     <!-- Draai dagelijks 08:15 lokale tijd. launchd haalt een gemiste run in
          zodra de Mac weer wakker is. -->
@@ -25,8 +25,8 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/rschermer/Documents/garmin-coach/logs/launchd.out.log</string>
+    <string>/Users/rschermer/garmin-coach/logs/launchd.out.log</string>
     <key>StandardErrorPath</key>
-    <string>/Users/rschermer/Documents/garmin-coach/logs/launchd.err.log</string>
+    <string>/Users/rschermer/garmin-coach/logs/launchd.err.log</string>
 </dict>
 </plist>
