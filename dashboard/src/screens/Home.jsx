@@ -2,59 +2,85 @@ import { useState, useEffect } from 'react'
 import { api } from '../api'
 import Card from '../ui/Card'
 import ReadinessHero from '../ui/ReadinessHero'
-import Sparkline from '../ui/Sparkline'
+import StatTile from '../ui/StatTile'
+import SectionHeader from '../ui/SectionHeader'
 import VolumeBars from '../ui/VolumeBars'
 import ZoneBar from '../ui/ZoneBar'
 import CoachNote from '../ui/CoachNote'
-import { paceStr, kmStr } from '../format'
+import { paceStr, kmStr, sleepStr } from '../format'
 
 export default function Home({ athleteId, onOpenRun, onNav }) {
-  const [home, setHome] = useState(null)
-  const [vol, setVol] = useState([])
-  const [vo2, setVo2] = useState([])
+  const [d, setD] = useState(null)
   const [err, setErr] = useState(false)
 
   useEffect(() => {
-    setHome(null); setErr(false)
-    Promise.all([api.home(athleteId), api.weeklyVolume(athleteId), api.vo2maxTrend(athleteId)])
-      .then(([h, v, t]) => { setHome(h); setVol(v.slice().reverse().map(w => w.km)); setVo2(t.map(x => x.vo2max)) })
-      .catch(() => setErr(true))
+    setD(null); setErr(false)
+    api.dashboard(athleteId).then(setD).catch(() => setErr(true))
   }, [athleteId])
 
   if (err) return <p style={{ color: 'var(--hard)' }}>Kon data niet laden.</p>
-  if (!home) return <p style={{ color: 'var(--faint)' }}>Laden…</p>
+  if (!d) return <p style={{ color: 'var(--faint)' }}>Laden…</p>
 
-  const { readiness, fitness, load, last_run } = home
+  const r = d.running || {}
+  const h = d.health || {}
+  const tw = d.today_workout
+  const lr = d.last_run
+
   return (
     <div>
-      <ReadinessHero readiness={readiness} />
-      <div style={{ display: 'flex', gap: 12 }}>
-        <Card onClick={() => onNav('fitness')} style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, color: 'var(--muted)' }}>Waar sta ik</p>
-          <p className="tnum" style={{ fontSize: 24, fontWeight: 500 }}>{fitness?.vo2max ?? '–'} <span style={{ fontSize: 11, color: 'var(--faint)' }}>VO₂max</span></p>
-          <Sparkline vals={vo2} />
-        </Card>
-        <Card onClick={() => onNav('load')} style={{ flex: 1 }}>
-          <p style={{ fontSize: 12, color: 'var(--muted)' }}>Belasting</p>
-          <p className="tnum" style={{ fontSize: 24, fontWeight: 500 }}>{load?.acwr ?? '–'}</p>
-          <VolumeBars vals={vol} />
-        </Card>
+      {/* Training vandaag */}
+      <Card onClick={() => onNav && onNav('schema')} style={{ borderColor: '#3a2418' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+          <span style={{ fontSize: 10.5, color: 'var(--accent)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+            Training vandaag{tw && tw.week_num ? ` · week ${tw.week_num}` : ''}
+          </span>
+        </div>
+        {tw ? (
+          <>
+            <p style={{ fontSize: 17, fontWeight: 600, margin: 0 }}>{tw.title}</p>
+            {tw.target_pace_s ? <p style={{ fontSize: 12, color: 'var(--muted)', margin: '4px 0 0' }}>doel {paceStr(tw.target_pace_s)} /km</p> : null}
+          </>
+        ) : <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0 }}>Geen training gepland vandaag.</p>}
+      </Card>
+
+      <ReadinessHero readiness={d.readiness} />
+
+      <SectionHeader>Hardlopen</SectionHeader>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+        <StatTile label="VO₂max" value={r.vo2max} trendVals={(r.vo2max_trend || []).map(x => x.vo2max)} trendColor="var(--good)" onClick={() => onNav && onNav('fitness')} />
+        <StatTile label="Weekvolume" value={r.weekly_volume && r.weekly_volume.length ? Math.round(r.weekly_volume[r.weekly_volume.length - 1].km) : null} unit="km" onClick={() => onNav && onNav('load')}>
+          <VolumeBars vals={(r.weekly_volume || []).map(w => w.km)} height={22} />
+        </StatTile>
+        <StatTile label="Belasting (ACWR)" value={r.acwr} onClick={() => onNav && onNav('load')} />
+        <StatTile label="Tempo @150bpm" value={paceStr(r.pace_at_hr)} unit="/km" trendVals={(r.pace_at_hr_trend || []).map(x => x.pace_s_per_km)} trendColor="var(--good)" onClick={() => onNav && onNav('fitness')} />
       </div>
-      {last_run && (
-        <Card onClick={() => onOpenRun(last_run.activity_id)}>
+
+      {lr && (
+        <Card onClick={() => onOpenRun && onOpenRun(lr.activity_id)} style={{ marginTop: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
             <span style={{ fontSize: 13, fontWeight: 600 }}>Laatste run</span>
-            <span style={{ fontSize: 11, color: 'var(--faint)' }}>{last_run.date}</span>
+            <span style={{ fontSize: 11, color: 'var(--faint)' }}>{lr.date} · {kmStr(lr.distance_km)} km</span>
           </div>
           <div style={{ display: 'flex', gap: 16, marginBottom: 10 }}>
-            <span className="tnum" style={{ fontSize: 18, fontWeight: 500 }}>{kmStr(last_run.distance_km)} km</span>
-            <span className="tnum" style={{ fontSize: 18, fontWeight: 500 }}>{paceStr(last_run.avg_pace_s_per_km)} /km</span>
-            <span className="tnum" style={{ fontSize: 18, fontWeight: 500 }}>{last_run.avg_hr ?? '–'} bpm</span>
+            <span className="tnum" style={{ fontSize: 17, fontWeight: 600 }}>{paceStr(lr.avg_pace_s_per_km)} <span style={{ fontSize: 10.5, color: 'var(--faint)' }}>/km</span></span>
+            <span className="tnum" style={{ fontSize: 17, fontWeight: 600 }}>{lr.avg_hr ?? '–'} <span style={{ fontSize: 10.5, color: 'var(--faint)' }}>bpm</span></span>
           </div>
-          <div style={{ marginBottom: 8 }}><ZoneBar zones={last_run.zones} /></div>
-          {last_run.duiding ? <CoachNote>{last_run.duiding}</CoachNote> : null}
+          <ZoneBar zones={lr.zones} />
+          {lr.duiding ? <div style={{ marginTop: 10 }}><CoachNote>{lr.duiding}</CoachNote></div> : null}
         </Card>
       )}
+
+      <SectionHeader>Gezondheid</SectionHeader>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        <StatTile label="HRV" value={h.hrv} trendVals={(h.hrv_trend || []).map(x => x.hrv)} trendColor="var(--z2)" />
+        <StatTile label="Slaap" value={sleepStr(h.sleep && h.sleep.duration_s)}>
+          {h.sleep && h.sleep.score != null ? <p style={{ fontSize: 10.5, color: 'var(--faint)', margin: '2px 0 0' }}>score {h.sleep.score}</p> : null}
+        </StatTile>
+        <StatTile label="Body" value={h.body_battery} />
+        <StatTile label="Rust-HR" value={h.resting_hr} unit="bpm" trendVals={(h.resting_hr_trend || []).map(x => x.resting_hr)} trendColor="var(--z1)" />
+        <StatTile label="Stappen" value={h.steps != null ? h.steps.toLocaleString('nl-NL') : null} />
+        <StatTile label="Actieve kcal" value={h.active_calories != null ? Math.round(h.active_calories) : null} />
+      </div>
     </div>
   )
 }
