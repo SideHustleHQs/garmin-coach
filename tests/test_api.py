@@ -273,3 +273,20 @@ def test_plan_week_and_workout_and_register():
     assert reg.status_code == 200
     wk2 = client.get("/api/athlete/vriendin/plan/week?week=1").json()
     assert any(d["date"] == run_day["date"] and d["status"] == "done" for d in wk2)
+
+
+def test_dashboard_endpoint_shape():
+    client = TestClient(app)
+    r = client.get("/api/athlete/vriendin/dashboard")
+    assert r.status_code == 200
+    b = r.json()
+    for key in ["today_workout", "readiness", "running", "last_run", "health"]:
+        assert key in b
+    assert set(["vo2max", "vo2max_trend", "weekly_volume", "acwr", "pace_at_hr"]).issubset(b["running"].keys())
+    assert set(["hrv", "hrv_trend", "sleep", "body_battery", "resting_hr", "resting_hr_trend", "steps", "active_calories"]).issubset(b["health"].keys())
+    assert isinstance(b["running"]["vo2max_trend"], list)
+
+
+def test_dashboard_404_unknown():
+    client = TestClient(app)
+    assert client.get("/api/athlete/nobody/dashboard").status_code == 404

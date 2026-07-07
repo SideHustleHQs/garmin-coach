@@ -28,6 +28,7 @@ export const api = {
   attentionPoints: (id) => get(`/athlete/${id}/attention_points`),
   splits:          (id, actId) => get(`/athlete/${id}/activity/${actId}/splits`),
   home:            (id) => get(`/athlete/${id}/home`),
+  dashboard:       (id) => get(`/athlete/${id}/dashboard`),
   fitness:         (id) => get(`/athlete/${id}/fitness`),
   plan:            (id) => get(`/athlete/${id}/plan`),
   planWeek:        (id, week) => get(`/athlete/${id}/plan/week?week=${week}`),
