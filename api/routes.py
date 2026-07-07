@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
+import adapt_engine
 import coach_rules
 import db as db_module
 import metrics
@@ -723,11 +724,19 @@ def get_plan(athlete_id: str) -> dict[str, Any]:
 
 
 def _wo_dict(r) -> dict:
+    override = bool(r["user_override"])
+    use_adj = bool(r["is_adjusted"]) and not override
+    run_type = r["adjusted_run_type"] if use_adj and r["adjusted_run_type"] is not None else r["run_type"]
+    title = r["adjusted_title"] if use_adj and r["adjusted_title"] else r["title"]
+    target = r["adjusted_target_pace_s"] if use_adj and r["adjusted_target_pace_s"] is not None else r["target_pace_s"]
+    seg_src = r["adjusted_segments"] if use_adj and r["adjusted_segments"] else r["segments"]
     return {"date": r["date"], "week_num": r["week_num"], "phase": r["phase"],
-            "day_type": r["day_type"], "run_type": r["run_type"], "title": r["title"],
-            "distance_km": r["distance_km"], "target_pace_s": r["target_pace_s"],
+            "day_type": r["day_type"], "run_type": run_type, "title": title,
+            "distance_km": r["distance_km"], "target_pace_s": target,
             "coach_note": r["coach_note"], "status": r["status"],
-            "segments": json.loads(r["segments"]) if r["segments"] else None}
+            "segments": json.loads(seg_src) if seg_src else None,
+            "is_adjusted": use_adj, "adjustment_reason": r["adjustment_reason"] if use_adj else None,
+            "user_override": override, "missed": bool(r["missed"])}
 
 
 @router.get("/athlete/{athlete_id}/plan/week")
@@ -772,6 +781,60 @@ def register_workout(athlete_id: str, wdate: str) -> dict[str, Any]:
             (act["activity_id"] if act else None, athlete_id, wdate))
         conn.commit()
         return {"ok": True, "linked_activity_id": act["activity_id"] if act else None}
+    finally:
+        if db_module.use_postgres():
+            conn.close()
+
+
+@router.post("/athlete/{athlete_id}/adapt")
+def adapt_plan(athlete_id: str) -> dict[str, Any]:
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+        today = _dt.date.today().isoformat()
+        plan = _exec(conn, "SELECT goal_time_s, race_distance_km FROM training_plan WHERE athlete_id=? ORDER BY id DESC LIMIT 1", (athlete_id,)).fetchone()
+        if not plan:
+            return {"ok": True, "adjusted": 0}
+        paces = plan_engine.compute_paces(plan["goal_time_s"], plan["race_distance_km"], _fitness(conn, athlete_id).get("current_easy_s"))
+        rd = _exec(conn, "SELECT score FROM training_readiness WHERE athlete_id=? ORDER BY date DESC LIMIT 1", (athlete_id,)).fetchone()
+        load = _exec(conn, "SELECT acwr FROM training_load_balance WHERE athlete_id=? ORDER BY date DESC LIMIT 1", (athlete_id,)).fetchone()
+        sl = _exec(conn, "SELECT duration_s, score FROM sleep WHERE athlete_id=? ORDER BY date DESC LIMIT 1", (athlete_id,)).fetchone()
+        signals = {"readiness": rd["score"] if rd else None, "acwr": load["acwr"] if load else None,
+                   "sleep_s": sl["duration_s"] if sl else None, "sleep_score": sl["score"] if sl else None,
+                   "recent_quality_hit": False, "downgrade_last_48h": False}
+        # pas toekomstige/vandaag, niet-override run-dagen aan
+        rows = _exec(conn, "SELECT date, run_type, title, target_pace_s, distance_km, segments FROM planned_workout WHERE athlete_id=? AND date>=? AND user_override=0", (athlete_id, today)).fetchall()
+        n = 0
+        for r in rows:
+            wo = {"run_type": r["run_type"], "title": r["title"], "target_pace_s": r["target_pace_s"],
+                  "distance_km": r["distance_km"], "segments": json.loads(r["segments"]) if r["segments"] else None}
+            adj = adapt_engine.adjust_day(wo, signals, paces)
+            if adj:
+                _exec(conn, """UPDATE planned_workout SET is_adjusted=1, adjusted_run_type=?, adjusted_title=?,
+                       adjusted_target_pace_s=?, adjusted_segments=?, adjustment_reason=? WHERE athlete_id=? AND date=?""",
+                      (adj["adjusted_run_type"], adj["adjusted_title"], adj.get("adjusted_target_pace_s"),
+                       json.dumps(adj["adjusted_segments"]) if adj.get("adjusted_segments") else None,
+                       adj["adjustment_reason"], athlete_id, r["date"]))
+                n += 1
+            else:
+                _exec(conn, "UPDATE planned_workout SET is_adjusted=0 WHERE athlete_id=? AND date=?", (athlete_id, r["date"]))
+        # markeer gemiste verleden runs
+        _exec(conn, """UPDATE planned_workout SET missed=1 WHERE athlete_id=? AND date<? AND day_type='run' AND linked_activity_id IS NULL""", (athlete_id, today))
+        conn.commit()
+        return {"ok": True, "adjusted": n}
+    finally:
+        if db_module.use_postgres():
+            conn.close()
+
+
+@router.post("/athlete/{athlete_id}/workout/{wdate}/override")
+def override_workout(athlete_id: str, wdate: str) -> dict[str, Any]:
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+        _exec(conn, "UPDATE planned_workout SET user_override=1 WHERE athlete_id=? AND date=?", (athlete_id, wdate))
+        conn.commit()
+        return {"ok": True}
     finally:
         if db_module.use_postgres():
             conn.close()

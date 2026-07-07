@@ -290,3 +290,25 @@ def test_dashboard_endpoint_shape():
 def test_dashboard_404_unknown():
     client = TestClient(app)
     assert client.get("/api/athlete/nobody/dashboard").status_code == 404
+
+
+def test_adapt_and_override_flow():
+    client = TestClient(app)
+    body = {"race_name": "M", "race_date": "2026-10-18", "race_distance_km": 42.195,
+            "goal_time_s": 14400, "start_date": "2026-07-13", "weeks": 14,
+            "run_days": ["mon", "thu", "sat"], "fixed_days": {"tue": "strength", "wed": "hyrox", "fri": "strength"}}
+    client.post("/api/athlete/vriendin/plan", json=body)
+    # forceer lage readiness zodat adapt afschaalt
+    conn = get_conn(TEST_DB)
+    conn.execute("INSERT OR REPLACE INTO training_readiness (athlete_id,date,score,level) VALUES ('vriendin','2026-07-13',30,'LOW')")
+    conn.commit()
+    r = client.post("/api/athlete/vriendin/adapt")
+    assert r.status_code == 200
+    wk = client.get("/api/athlete/vriendin/plan/week?week=1").json()
+    q = next((d for d in wk if d.get("is_adjusted")), None)
+    assert q is not None and q["run_type"] == "easy"        # effectieve = aangepast
+    # override → origineel terug
+    client.post(f"/api/athlete/vriendin/workout/{q['date']}/override")
+    wk2 = client.get("/api/athlete/vriendin/plan/week?week=1").json()
+    d2 = next(d for d in wk2 if d["date"] == q["date"])
+    assert d2["run_type"] == "quality" and d2.get("user_override") is True
