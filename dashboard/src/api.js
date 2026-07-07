@@ -6,6 +6,13 @@ async function get(path) {
   return r.json()
 }
 
+async function post(path, body) {
+  const r = await fetch(BASE + path, { method: 'POST',
+    headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
+  if (!r.ok) throw new Error(`${r.status} ${path}`)
+  return r.json()
+}
+
 export const api = {
   athletes:        () => get('/athletes'),
   hero:            (id) => get(`/athlete/${id}/hero`),
@@ -22,4 +29,8 @@ export const api = {
   splits:          (id, actId) => get(`/athlete/${id}/activity/${actId}/splits`),
   home:            (id) => get(`/athlete/${id}/home`),
   fitness:         (id) => get(`/athlete/${id}/fitness`),
+  plan:            (id) => get(`/athlete/${id}/plan`),
+  planWeek:        (id, week) => get(`/athlete/${id}/plan/week?week=${week}`),
+  workout:         (id, date) => get(`/athlete/${id}/workout/${date}`),
+  registerWorkout: (id, date) => post(`/athlete/${id}/workout/${date}/register`),
 }

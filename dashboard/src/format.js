@@ -25,3 +25,15 @@ export function sleepStr(sec) {
   const m = Math.floor((sec % 3600) / 60)
   return `${h}:${String(m).padStart(2, '0')}`
 }
+
+export function hmStr(sec) {
+  if (sec == null) return '–'
+  const h = Math.floor(sec / 3600)
+  const m = Math.round((sec % 3600) / 60)
+  return `${h}:${String(m).padStart(2, '0')}`
+}
+
+export function hmRange(r) {
+  if (!r || r.length !== 2) return '–'
+  return `${hmStr(r[0])}–${hmStr(r[1])}`
+}
