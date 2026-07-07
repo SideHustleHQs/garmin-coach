@@ -1,4 +1,5 @@
 from __future__ import annotations
+import datetime as _dt
 import json
 import sqlite3
 from typing import Any
@@ -187,6 +188,110 @@ def get_home(athlete_id: str) -> dict[str, Any]:
                 "duiding": coach_rules.duiding_load({"acwr": load["acwr"] if load else None}),
             },
             "last_run": last_run,
+        }
+    finally:
+        if db_module.use_postgres():
+            conn.close()
+
+
+@router.get("/athlete/{athlete_id}/dashboard")
+def get_dashboard(athlete_id: str) -> dict[str, Any]:
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+        today = _dt.date.today().isoformat()
+
+        def one(sql, params):
+            return _exec(conn, sql, params).fetchone()
+        def many(sql, params):
+            return _exec(conn, sql, params).fetchall()
+
+        tw = one("""SELECT title, run_type, day_type, week_num, target_pace_s
+                    FROM planned_workout WHERE athlete_id=? AND date=?""", (athlete_id, today))
+        today_workout = ({"title": tw["title"], "run_type": tw["run_type"], "day_type": tw["day_type"],
+                          "week_num": tw["week_num"], "target_pace_s": tw["target_pace_s"]} if tw else None)
+
+        rd = one("SELECT score, level FROM training_readiness WHERE athlete_id=? ORDER BY date DESC LIMIT 1", (athlete_id,))
+        hrv_l = one("SELECT last_night_avg FROM hrv WHERE athlete_id=? ORDER BY date DESC LIMIT 1", (athlete_id,))
+        sleep_l = one("SELECT duration_s, score FROM sleep WHERE athlete_id=? ORDER BY date DESC LIMIT 1", (athlete_id,))
+        bb = one("SELECT level_current FROM body_battery WHERE athlete_id=? AND level_current IS NOT NULL ORDER BY date DESC LIMIT 1", (athlete_id,))
+        readiness_score = rd["score"] if rd else None
+
+        vo2_rows = many("SELECT date, vo2max FROM vo2max WHERE athlete_id=? ORDER BY date", (athlete_id,))
+        vo2_trend = [{"date": r["date"], "vo2max": r["vo2max"]} for r in vo2_rows]
+        vo2_latest = vo2_trend[-1]["vo2max"] if vo2_trend else None
+
+        load = one("SELECT acwr, acwr_status FROM training_load_balance WHERE athlete_id=? ORDER BY date DESC LIMIT 1", (athlete_id,))
+
+        runs = many("""SELECT date, distance_m, duration_s, avg_hr FROM activities
+                       WHERE athlete_id=? AND type_key='running' AND distance_m>0 ORDER BY date""", (athlete_id,))
+        pace_trend = metrics.pace_at_hr([dict(r) for r in runs])
+
+        if db_module.use_postgres():
+            week_expr = "to_char(date::date, 'IYYY-\"W\"IW')"
+        else:
+            week_expr = "strftime('%Y-W%W', date)"
+        wv = many(f"""SELECT {week_expr} AS week, SUM(distance_m)/1000.0 AS km
+                      FROM activities WHERE athlete_id=? AND type_key='running'
+                      GROUP BY week ORDER BY week DESC LIMIT 6""", (athlete_id,))
+        weekly_volume = [{"week": r["week"], "km": round(r["km"], 1)} for r in reversed(wv)]
+
+        rest_rows = many("""SELECT date, resting_hr FROM daily_heart_rates
+                            WHERE athlete_id=? AND resting_hr IS NOT NULL ORDER BY date""", (athlete_id,))
+        rest_trend = [{"date": r["date"], "resting_hr": r["resting_hr"]} for r in rest_rows]
+        hrv_rows = many("SELECT date, last_night_avg FROM hrv WHERE athlete_id=? AND last_night_avg IS NOT NULL ORDER BY date", (athlete_id,))
+        hrv_trend = [{"date": r["date"], "hrv": r["last_night_avg"]} for r in hrv_rows]
+        ds = one("SELECT steps, active_calories FROM daily_stats WHERE athlete_id=? ORDER BY date DESC LIMIT 1", (athlete_id,))
+
+        last = one("""SELECT date, name, activity_id, distance_m, duration_s, avg_hr,
+                             hr_zone_1_s, hr_zone_2_s, hr_zone_3_s, hr_zone_4_s, hr_zone_5_s
+                      FROM activities WHERE athlete_id=? AND type_key='running' AND distance_m>0
+                      ORDER BY date DESC LIMIT 1""", (athlete_id,))
+        last_run = None
+        if last:
+            dist_km = (last["distance_m"] or 0) / 1000
+            dur_s = last["duration_s"] or 0
+            splits = many("""SELECT distance_m, duration_s FROM activity_splits
+                             WHERE athlete_id=? AND activity_id=? ORDER BY split_num""", (athlete_id, last["activity_id"]))
+            sp = [round(s["duration_s"] / (s["distance_m"] / 1000), 1) for s in splits if (s["distance_m"] or 0) > 0 and (s["duration_s"] or 0) > 0]
+            last_run = {
+                "date": last["date"], "activity_id": last["activity_id"], "name": last["name"],
+                "distance_km": round(dist_km, 2),
+                "avg_pace_s_per_km": round(dur_s / dist_km, 1) if dist_km > 0 else None,
+                "avg_hr": last["avg_hr"],
+                "zones": {"z1": last["hr_zone_1_s"], "z2": last["hr_zone_2_s"], "z3": last["hr_zone_3_s"],
+                          "z4": last["hr_zone_4_s"], "z5": last["hr_zone_5_s"]},
+                "duiding": coach_rules.duiding_run({"splits_pace": sp, "avg_hr": last["avg_hr"]}),
+            }
+
+        return {
+            "today_workout": today_workout,
+            "readiness": {
+                "score": readiness_score, "level": rd["level"] if rd else None,
+                "hrv": hrv_l["last_night_avg"] if hrv_l else None,
+                "sleep_s": sleep_l["duration_s"] if sleep_l else None,
+                "body_battery": bb["level_current"] if bb else None,
+                "duiding": coach_rules.duiding_readiness({"score": readiness_score}),
+            },
+            "running": {
+                "vo2max": vo2_latest, "vo2max_trend": vo2_trend,
+                "weekly_volume": weekly_volume,
+                "acwr": load["acwr"] if load else None,
+                "acwr_status": load["acwr_status"] if load else None,
+                "pace_at_hr": pace_trend[-1]["pace_s_per_km"] if pace_trend else None,
+                "pace_at_hr_trend": pace_trend,
+            },
+            "last_run": last_run,
+            "health": {
+                "hrv": hrv_l["last_night_avg"] if hrv_l else None, "hrv_trend": hrv_trend,
+                "sleep": {"duration_s": sleep_l["duration_s"] if sleep_l else None,
+                          "score": sleep_l["score"] if sleep_l else None},
+                "body_battery": bb["level_current"] if bb else None,
+                "resting_hr": rest_trend[-1]["resting_hr"] if rest_trend else None,
+                "resting_hr_trend": rest_trend,
+                "steps": ds["steps"] if ds else None,
+                "active_calories": ds["active_calories"] if ds else None,
+            },
         }
     finally:
         if db_module.use_postgres():
