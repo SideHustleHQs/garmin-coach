@@ -57,4 +57,9 @@ if [[ -n "${DATABASE_URL:-}" ]]; then
 else
   log "SKIP push: DATABASE_URL leeg (data blijft in lokale SQLite)."
 fi
+
+if [[ -n "${DATABASE_URL:-}" ]]; then
+  log "ADAPT (dagelijkse bijsturing)..."
+  "$PY" scripts/adapt.py >>"$LOG" 2>&1 && log "OK adapt" || log "FOUT adapt (zie log)"
+fi
 log "=== sync klaar ==="
