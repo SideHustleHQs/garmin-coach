@@ -95,6 +95,9 @@ CREATE TABLE IF NOT EXISTS planned_workout (
     week_num INTEGER, phase TEXT, day_type TEXT, run_type TEXT,
     title TEXT, distance_km REAL, segments TEXT, target_pace_s INTEGER,
     coach_note TEXT, status TEXT DEFAULT 'planned', linked_activity_id INTEGER,
+    adjusted_run_type TEXT, adjusted_title TEXT, adjusted_segments TEXT,
+    adjusted_target_pace_s INTEGER, adjustment_reason TEXT,
+    is_adjusted INTEGER DEFAULT 0, user_override INTEGER DEFAULT 0, missed INTEGER DEFAULT 0,
     PRIMARY KEY (athlete_id, date),
     FOREIGN KEY (athlete_id) REFERENCES athletes(id)
 );
@@ -179,6 +182,9 @@ CREATE TABLE IF NOT EXISTS planned_workout (
     week_num INTEGER, phase TEXT, day_type TEXT, run_type TEXT,
     title TEXT, distance_km REAL, segments TEXT, target_pace_s INTEGER,
     coach_note TEXT, status TEXT DEFAULT 'planned', linked_activity_id INTEGER,
+    adjusted_run_type TEXT, adjusted_title TEXT, adjusted_segments TEXT,
+    adjusted_target_pace_s INTEGER, adjustment_reason TEXT,
+    is_adjusted INTEGER DEFAULT 0, user_override INTEGER DEFAULT 0, missed INTEGER DEFAULT 0,
     PRIMARY KEY (athlete_id, date)
 );
 """
@@ -199,6 +205,12 @@ BODY_BATTERY_NEW_COLUMNS = [
     ("level_current", "INTEGER"),
     ("level_high", "INTEGER"),
     ("level_low", "INTEGER"),
+]
+
+PLANNED_WORKOUT_NEW_COLUMNS = [
+    ("adjusted_run_type", "TEXT"), ("adjusted_title", "TEXT"), ("adjusted_segments", "TEXT"),
+    ("adjusted_target_pace_s", "INTEGER"), ("adjustment_reason", "TEXT"),
+    ("is_adjusted", "INTEGER DEFAULT 0"), ("user_override", "INTEGER DEFAULT 0"), ("missed", "INTEGER DEFAULT 0"),
 ]
 
 
@@ -236,6 +248,8 @@ def _init_pg() -> None:
                 stmt = stmt.strip()
                 if stmt:
                     cur.execute(stmt)
+            for col, ctype in PLANNED_WORKOUT_NEW_COLUMNS:
+                cur.execute(f"ALTER TABLE planned_workout ADD COLUMN IF NOT EXISTS {col} {ctype}")
         conn.commit()
     finally:
         conn.close()
@@ -246,6 +260,7 @@ def _init_sqlite(path: Path) -> None:
         conn.executescript(SCHEMA_SQLITE)
     _migrate_activities(path)
     _migrate_body_battery(path)
+    _migrate_planned_workout(path)
 
 
 def _migrate_activities(path: Path) -> None:
@@ -263,4 +278,13 @@ def _migrate_body_battery(path: Path) -> None:
         for col, col_type in BODY_BATTERY_NEW_COLUMNS:
             if col not in existing:
                 conn.execute(f"ALTER TABLE body_battery ADD COLUMN {col} {col_type}")
+        conn.commit()
+
+
+def _migrate_planned_workout(path: Path) -> None:
+    with get_conn(path) as conn:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(planned_workout)").fetchall()}
+        for col, ctype in PLANNED_WORKOUT_NEW_COLUMNS:
+            if col not in cols:
+                conn.execute(f"ALTER TABLE planned_workout ADD COLUMN {col} {ctype}")
         conn.commit()
