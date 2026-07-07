@@ -50,7 +50,7 @@ export default function App() {
         {screen === 'fitness' && <FitnessDetail athleteId={athleteId} onBack={() => nav('home')} />}
         {screen === 'load' && <LoadDetail athleteId={athleteId} onBack={() => nav('home')} />}
         {screen === 'runs' && <RunsList athleteId={athleteId} onOpenRun={openRun} />}
-        {screen === 'schema' && <Schema />}
+        {screen === 'schema' && <Schema athleteId={athleteId} />}
         {screen === 'delen' && <Delen athlete={athlete} />}
       </div>
 
