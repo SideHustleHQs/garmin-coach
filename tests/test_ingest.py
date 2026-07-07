@@ -20,7 +20,7 @@ def test_schema_creates_all_tables():
     p = make_tmp_db()
     conn = get_conn(p)
     tables = {r[0] for r in conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'"
+        "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
     ).fetchall()}
     assert tables == {
         "athletes", "activities", "daily_stats",
@@ -28,6 +28,7 @@ def test_schema_creates_all_tables():
         "training_readiness", "vo2max",
         "training_load_balance", "activity_splits",
         "hrv", "sleep",
+        "athlete_training_prefs", "training_plan", "planned_workout",
     }
     p.unlink()
 
