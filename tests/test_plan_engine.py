@@ -99,3 +99,48 @@ def test_estimate_finish_returns_range():
     lo, hi = estimate_finish(distance_km=42.195, goal_time_s=14400, fitness={"current_easy_s": 375})
     assert lo < hi
     assert isinstance(lo, int) and isinstance(hi, int)
+
+
+def test_peak_quality_workout_uses_interval_pace():
+    plan = {"race_distance_km": 42.195, "goal_time_s": 14400,
+            "start_date": "2026-07-13", "weeks": 14}
+    prefs = {"run_days": ["mon", "thu", "sat"],
+             "fixed_days": {"tue": "strength", "wed": "hyrox", "fri": "strength"}}
+    fitness = {"current_easy_s": 375, "longest_km": 14}
+    rows = generate_plan(plan, prefs, fitness)
+    from plan_engine import compute_paces
+    paces = compute_paces(plan["goal_time_s"], plan["race_distance_km"], fitness["current_easy_s"])
+    peak_quality = next(r for r in rows if r["phase"] == "peak" and r["run_type"] == "quality")
+    assert peak_quality["target_pace_s"] == paces["interval"]
+    assert peak_quality["target_pace_s"] < paces["tempo"]  # sneller (lager) dan tempo-pace
+
+
+def test_assemble_week_fallback_stays_off_long_day():
+    # run_days=[tue, thu, sat(long)]; hyrox op mon+wed -> prev(tue)=mon(hard), prev(thu)=wed(hard)
+    # -> candidates leeg, fallback triggert. Fallback mag nooit de long-dag claimen (silent drop van quality).
+    days = assemble_week(
+        run_days=["tue", "thu", "sat"], fixed_days={"mon": "hyrox", "wed": "hyrox"},
+        long_km=20, easy_km=7, quality={"type": "tempo", "title": "Tempo 8 km"},
+    )
+    by = {d["weekday"]: d for d in days}
+    assert by["sat"]["run_type"] == "long"
+    # quality moet op een van de niet-long run-dagen landen, nooit stilzwijgend verdwijnen
+    assert any(by[d]["run_type"] == "quality" for d in ["tue", "thu"])
+    assert by["sat"]["run_type"] != "quality"
+
+
+def test_generate_plan_marks_race_day():
+    plan = {"race_distance_km": 42.195, "goal_time_s": 14400,
+            "start_date": "2026-07-13", "weeks": 2,
+            "race_date": "2026-07-26", "race_name": "Marathon van Amsterdam"}
+    prefs = {"run_days": ["mon", "thu", "sat"],
+             "fixed_days": {"tue": "strength", "wed": "hyrox", "fri": "strength"}}
+    fitness = {"current_easy_s": 375, "longest_km": 14}
+    rows = generate_plan(plan, prefs, fitness)
+    race_rows = [r for r in rows if r["day_type"] == "race"]
+    assert len(race_rows) == 1
+    race_row = race_rows[0]
+    assert race_row["date"] == "2026-07-26"
+    assert race_row["run_type"] == "race"
+    assert race_row["distance_km"] == plan["race_distance_km"]
+    assert race_row["title"] == "Marathon van Amsterdam"

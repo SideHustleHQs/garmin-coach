@@ -67,7 +67,12 @@ def assemble_week(run_days: list[str], fixed_days: dict, long_km: float,
     def prev(d):
         return WEEKDAYS[(WEEKDAYS.index(d) - 1) % 7]
     candidates = [d for d in run_days if d != long_day and fixed_days.get(prev(d)) not in HARD_TYPES]
-    quality_day = candidates[0] if candidates else next(d for d in run_days if d != long_day)
+    if candidates:
+        quality_day = candidates[0]
+    else:
+        # geen ideale dag: kies de run-dag (excl. long) die het minst slecht is
+        others = [d for d in run_days if d != long_day] or [long_day]
+        quality_day = sorted(others, key=lambda d: fixed_days.get(prev(d)) in HARD_TYPES)[0]
 
     days = []
     for wd in WEEKDAYS:
@@ -132,7 +137,7 @@ def generate_plan(plan: dict, prefs: dict, fitness: dict) -> list[dict]:
             run_type = d.get("run_type")
             if run_type == "quality":
                 segments = quality["segments"]
-                target = paces["tempo"]
+                target = paces["interval"] if quality.get("type") == "interval" else paces["tempo"]
             elif run_type == "long":
                 segments = [{"label": f"Lange duurloop {round(d['distance_km'])} km",
                              "distance_m": int(d["distance_km"] * 1000), "target_pace_s": paces["long"]}]
@@ -150,6 +155,17 @@ def generate_plan(plan: dict, prefs: dict, fitness: dict) -> list[dict]:
                 "distance_km": d.get("distance_km"), "segments": segments, "target_pace_s": target,
                 "coach_note": coach_rules.duiding_workout(run_type, phase) if run_type else None,
             })
+
+    race_date = plan.get("race_date")
+    if race_date:
+        for r in rows:
+            if r["date"] == race_date:
+                r["day_type"] = "race"; r["run_type"] = "race"
+                r["title"] = plan.get("race_name", "Race")
+                r["distance_km"] = plan["race_distance_km"]
+                r["target_pace_s"] = paces["mp"]
+                r["segments"] = [{"label": r["title"], "distance_m": int(plan["race_distance_km"] * 1000), "target_pace_s": paces["mp"]}]
+                r["coach_note"] = "Racedag — waar je 14 weken voor traint. Vertrouw op je plan."
     return rows
 
 
