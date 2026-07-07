@@ -108,6 +108,8 @@ def setup_db():
         DELETE FROM activities; DELETE FROM training_readiness;
         DELETE FROM vo2max; DELETE FROM daily_stats; DELETE FROM body_battery;
         DELETE FROM training_load_balance; DELETE FROM activity_splits;
+        DELETE FROM planned_workout; DELETE FROM training_plan;
+        DELETE FROM athlete_training_prefs;
         DELETE FROM athletes;
     """)
     conn.commit()
@@ -237,3 +239,19 @@ def test_fitness_endpoint_shape():
     body = r.json()
     assert set(["vo2max_trend", "resting_hr_trend", "pace_at_hr", "duiding"]).issubset(body.keys())
     assert isinstance(body["pace_at_hr"], list)
+
+
+def test_create_and_get_plan():
+    client = TestClient(app)
+    body = {"race_name": "Test Marathon", "race_date": "2026-10-18",
+            "race_distance_km": 42.195, "goal_time_s": 14400,
+            "start_date": "2026-07-13", "weeks": 14,
+            "run_days": ["mon", "thu", "sat"],
+            "fixed_days": {"tue": "strength", "wed": "hyrox", "fri": "strength"}}
+    r = client.post("/api/athlete/vriendin/plan", json=body)
+    assert r.status_code == 200
+    g = client.get("/api/athlete/vriendin/plan").json()
+    assert g["race_name"] == "Test Marathon"
+    assert g["weeks"] == 14
+    assert "estimated_time_s" in g and len(g["estimated_time_s"]) == 2
+    assert g["total_planned_km"] > 0

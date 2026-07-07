@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 import coach_rules
 import db as db_module
 import metrics
+import plan_engine
 
 router = APIRouter(prefix="/api")
 
@@ -537,6 +538,80 @@ def get_recovery(athlete_id: str, days: int = 7) -> list[dict[str, Any]]:
             }
             for r in rows
         ]
+    finally:
+        if db_module.use_postgres():
+            conn.close()
+
+
+def _fitness(conn, athlete_id: str) -> dict:
+    rows = _exec(conn,
+        """SELECT distance_m, duration_s, avg_hr FROM activities
+           WHERE athlete_id=? AND type_key='running' AND distance_m>0 ORDER BY date DESC LIMIT 20""",
+        (athlete_id,)).fetchall()
+    paces = [r["duration_s"] / (r["distance_m"] / 1000) for r in rows if (r["distance_m"] or 0) > 0]
+    longest = max([(r["distance_m"] or 0) / 1000 for r in rows], default=0)
+    easy = round(sorted(paces)[len(paces) // 2]) if paces else None
+    return {"current_easy_s": easy, "longest_km": round(longest) or None}
+
+
+@router.post("/athlete/{athlete_id}/plan")
+def create_plan(athlete_id: str, body: dict) -> dict[str, Any]:
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+        _exec(conn, "DELETE FROM planned_workout WHERE athlete_id=?", (athlete_id,))
+        _exec(conn, "DELETE FROM training_plan WHERE athlete_id=?", (athlete_id,))
+        _exec(conn,
+            """INSERT INTO training_plan (athlete_id, race_name, race_date, race_distance_km,
+               goal_time_s, start_date, weeks, methodology, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (athlete_id, body["race_name"], body["race_date"], body["race_distance_km"],
+             body.get("goal_time_s"), body["start_date"], body["weeks"], "periodized-v1", body["start_date"]))
+        prefs = {"run_days": body["run_days"], "fixed_days": body["fixed_days"]}
+        _exec(conn,
+            """INSERT INTO athlete_training_prefs (athlete_id, runs_per_week, run_days, fixed_days)
+               VALUES (?,?,?,?)
+               ON CONFLICT(athlete_id) DO UPDATE SET runs_per_week=excluded.runs_per_week,
+                 run_days=excluded.run_days, fixed_days=excluded.fixed_days""",
+            (athlete_id, len(body["run_days"]), json.dumps(body["run_days"]), json.dumps(body["fixed_days"])))
+        rows = plan_engine.generate_plan(body, prefs, _fitness(conn, athlete_id))
+        for r in rows:
+            _exec(conn,
+                """INSERT INTO planned_workout (athlete_id, date, week_num, phase, day_type,
+                   run_type, title, distance_km, segments, target_pace_s, coach_note, status)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,'planned')""",
+                (athlete_id, r["date"], r["week_num"], r["phase"], r["day_type"], r["run_type"],
+                 r["title"], r["distance_km"], json.dumps(r["segments"]) if r["segments"] else None,
+                 r["target_pace_s"], r["coach_note"]))
+        conn.commit()
+        return {"ok": True, "days": len(rows)}
+    finally:
+        if db_module.use_postgres():
+            conn.close()
+
+
+@router.get("/athlete/{athlete_id}/plan")
+def get_plan(athlete_id: str) -> dict[str, Any]:
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+        p = _exec(conn, "SELECT * FROM training_plan WHERE athlete_id=? ORDER BY id DESC LIMIT 1",
+                  (athlete_id,)).fetchone()
+        if not p:
+            return {"plan": None}
+        agg = _exec(conn,
+            """SELECT COUNT(*) n, COALESCE(SUM(distance_km),0) km,
+                      COALESCE(SUM(CASE WHEN status='done' THEN distance_km ELSE 0 END),0) done_km
+               FROM planned_workout WHERE athlete_id=? AND day_type='run'""",
+            (athlete_id,)).fetchone()
+        lo, hi = plan_engine.estimate_finish(p["race_distance_km"], p["goal_time_s"], _fitness(conn, athlete_id))
+        return {
+            "race_name": p["race_name"], "race_date": p["race_date"],
+            "race_distance_km": p["race_distance_km"], "goal_time_s": p["goal_time_s"],
+            "weeks": p["weeks"], "start_date": p["start_date"],
+            "total_planned_km": round(agg["km"], 1), "done_km": round(agg["done_km"], 1),
+            "estimated_time_s": [lo, hi],
+        }
     finally:
         if db_module.use_postgres():
             conn.close()
