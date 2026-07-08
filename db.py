@@ -108,6 +108,13 @@ CREATE TABLE IF NOT EXISTS plan_replan_log (
     reason TEXT,
     created_at TEXT DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS coach_chat (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    athlete_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 SCHEMA_PG = """
@@ -201,6 +208,13 @@ CREATE TABLE IF NOT EXISTS plan_replan_log (
     reason TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+CREATE TABLE IF NOT EXISTS coach_chat (
+    id SERIAL PRIMARY KEY,
+    athlete_id TEXT NOT NULL,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 """
 
 ACTIVITY_NEW_COLUMNS = [
@@ -276,6 +290,7 @@ def _init_sqlite(path: Path) -> None:
     _migrate_body_battery(path)
     _migrate_planned_workout(path)
     _migrate_replan_log(path)
+    _migrate_coach_chat(path)
 
 
 def _migrate_activities(path: Path) -> None:
@@ -310,6 +325,15 @@ def _migrate_replan_log(path: Path) -> None:
         conn.execute("""CREATE TABLE IF NOT EXISTS plan_replan_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT, athlete_id TEXT NOT NULL,
             replan_date TEXT NOT NULL, reason TEXT,
+            created_at TEXT DEFAULT (datetime('now')))""")
+        conn.commit()
+
+
+def _migrate_coach_chat(path: Path) -> None:
+    with get_conn(path) as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS coach_chat (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, athlete_id TEXT NOT NULL,
+            role TEXT NOT NULL, content TEXT NOT NULL,
             created_at TEXT DEFAULT (datetime('now')))""")
         conn.commit()
 

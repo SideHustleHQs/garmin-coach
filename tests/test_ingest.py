@@ -30,6 +30,7 @@ def test_schema_creates_all_tables():
         "hrv", "sleep",
         "athlete_training_prefs", "training_plan", "planned_workout",
         "plan_replan_log",
+        "coach_chat",
     }
     p.unlink()
 
