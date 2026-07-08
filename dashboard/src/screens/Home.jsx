@@ -47,12 +47,12 @@ export default function Home({ athleteId, onOpenRun, onNav }) {
 
       <SectionHeader color="var(--blue)">Hardlopen</SectionHeader>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        <StatTile label="VO₂max" value={r.vo2max} trendVals={(r.vo2max_trend || []).map(x => x.vo2max)} trendColor="var(--good)" onClick={() => onNav && onNav('fitness')} />
-        <StatTile label="Weekvolume" value={r.weekly_volume && r.weekly_volume.length ? Math.round(r.weekly_volume[r.weekly_volume.length - 1].km) : null} unit="km" onClick={() => onNav && onNav('load')}>
+        <StatTile label="VO₂max" value={r.vo2max} trendVals={(r.vo2max_trend || []).map(x => x.vo2max)} trendColor="var(--good)" onClick={() => onNav && onNav('fitness')} accentColor="var(--blue)" />
+        <StatTile label="Weekvolume" value={r.weekly_volume && r.weekly_volume.length ? Math.round(r.weekly_volume[r.weekly_volume.length - 1].km) : null} unit="km" onClick={() => onNav && onNav('load')} accentColor="var(--blue)">
           <VolumeBars vals={(r.weekly_volume || []).map(w => w.km)} height={22} />
         </StatTile>
-        <StatTile label="Belasting (ACWR)" value={r.acwr} onClick={() => onNav && onNav('load')} />
-        <StatTile label="Tempo @150bpm" value={paceStr(r.pace_at_hr)} unit="/km" trendVals={(r.pace_at_hr_trend || []).map(x => x.pace_s_per_km)} trendColor="var(--good)" onClick={() => onNav && onNav('fitness')} />
+        <StatTile label="Belasting (ACWR)" value={r.acwr} onClick={() => onNav && onNav('load')} accentColor="var(--blue)" />
+        <StatTile label="Tempo @150bpm" value={paceStr(r.pace_at_hr)} unit="/km" trendVals={(r.pace_at_hr_trend || []).map(x => x.pace_s_per_km)} trendColor="var(--good)" onClick={() => onNav && onNav('fitness')} accentColor="var(--blue)" />
       </div>
 
       {lr && (
@@ -72,14 +72,14 @@ export default function Home({ athleteId, onOpenRun, onNav }) {
 
       <SectionHeader color="var(--green)">Gezondheid</SectionHeader>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-        <StatTile label="HRV" value={h.hrv} trendVals={(h.hrv_trend || []).map(x => x.hrv)} trendColor="var(--z2)" />
-        <StatTile label="Slaap" value={sleepStr(h.sleep && h.sleep.duration_s)}>
+        <StatTile label="HRV" value={h.hrv} trendVals={(h.hrv_trend || []).map(x => x.hrv)} trendColor="var(--z2)" accentColor="var(--green)" />
+        <StatTile label="Slaap" value={sleepStr(h.sleep && h.sleep.duration_s)} accentColor="var(--green)">
           {h.sleep && h.sleep.score != null ? <p style={{ fontSize: 10.5, color: 'var(--faint)', margin: '2px 0 0' }}>score {h.sleep.score}</p> : null}
         </StatTile>
-        <StatTile label="Body" value={h.body_battery} />
-        <StatTile label="Rust-HR" value={h.resting_hr} unit="bpm" trendVals={(h.resting_hr_trend || []).map(x => x.resting_hr)} trendColor="var(--z1)" />
-        <StatTile label="Stappen" value={h.steps != null ? h.steps.toLocaleString('nl-NL') : null} />
-        <StatTile label="Actieve kcal" value={h.active_calories != null ? Math.round(h.active_calories) : null} />
+        <StatTile label="Body" value={h.body_battery} accentColor="var(--green)" />
+        <StatTile label="Rust-HR" value={h.resting_hr} unit="bpm" trendVals={(h.resting_hr_trend || []).map(x => x.resting_hr)} trendColor="var(--z1)" accentColor="var(--green)" />
+        <StatTile label="Stappen" value={h.steps != null ? h.steps.toLocaleString('nl-NL') : null} accentColor="var(--green)" />
+        <StatTile label="Actieve kcal" value={h.active_calories != null ? Math.round(h.active_calories) : null} accentColor="var(--green)" />
       </div>
     </div>
   )
