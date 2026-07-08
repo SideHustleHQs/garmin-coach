@@ -320,3 +320,23 @@ def test_adapt_and_override_flow():
     assert d2.get("is_adjusted") is False
     assert d2["run_type"] == orig_by_date[q["date"]]
     assert d2.get("user_override") is True
+
+
+# --- Fase3 Plan2: replan + plan/meta ---
+def test_replan_no_drift_returns_false(client=None, default_athlete=None):
+    """Als er geen drift is, replanned=False."""
+    resp = client.post("/api/athlete/vriendin/replan") if client else \
+           TestClient(app).post("/api/athlete/vriendin/replan")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "replanned" in data
+    assert data["replanned"] is False  # geen plan of geen drift in test-DB
+
+
+def test_plan_meta_returns_last_replan(client=None, default_athlete=None):
+    resp = client.get("/api/athlete/vriendin/plan/meta") if client else \
+           TestClient(app).get("/api/athlete/vriendin/plan/meta")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "last_replan" in data  # None of datum-dict
+    assert "race_date" in data

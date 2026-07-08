@@ -839,3 +839,100 @@ def override_workout(athlete_id: str, wdate: str) -> dict[str, Any]:
     finally:
         if db_module.use_postgres():
             conn.close()
+
+
+@router.post("/athlete/{athlete_id}/replan")
+def trigger_replan(athlete_id: str) -> dict:
+    """On-demand drift-check + replan."""
+    today = _dt.date.today()
+    today_s = str(today)
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+        rows = [dict(r) for r in _exec(conn,
+            "SELECT date AS planned_date, run_type, missed, linked_activity_id FROM planned_workout "
+            "WHERE athlete_id=? ORDER BY date", (athlete_id,)).fetchall()]
+        cutoff = str(today - _dt.timedelta(days=14))
+        try:
+            acwr_rows = _exec(conn,
+                "SELECT acwr FROM training_load_balance WHERE athlete_id=? AND date>=?",
+                (athlete_id, cutoff)).fetchall()
+            acwr_hist = [r["acwr"] for r in acwr_rows if r.get("acwr") is not None]
+        except Exception:
+            acwr_hist = []
+        drift = adapt_engine.check_drift(rows, today, {"acwr_history": acwr_hist})
+        if not drift["drift"]:
+            return {"replanned": False, "reason": "Geen drift gedetecteerd."}
+        plan_row = _exec(conn,
+            "SELECT * FROM training_plan WHERE athlete_id=? ORDER BY created_at DESC LIMIT 1",
+            (athlete_id,)).fetchone()
+        if not plan_row:
+            return {"replanned": False, "reason": "Geen plan gevonden."}
+        plan = dict(plan_row)
+        fitness_row = _exec(conn,
+            "SELECT easy_pace_s, vo2max FROM athlete_metrics WHERE athlete_id=? ORDER BY date DESC LIMIT 1",
+            (athlete_id,)).fetchone() if False else None  # table may not exist
+        try:
+            fitness_row = _exec(conn,
+                "SELECT easy_pace_s, vo2max FROM athlete_metrics WHERE athlete_id=? ORDER BY date DESC LIMIT 1",
+                (athlete_id,)).fetchone()
+        except Exception:
+            fitness_row = None
+        fitness = {
+            "easy_pace_s": fitness_row["easy_pace_s"] if fitness_row else None,
+            "vo2max": fitness_row["vo2max"] if fitness_row else None,
+        }
+        run_days_raw = plan.get("run_days") or "mon,wed,fri,sat"
+        prefs = {
+            "run_days": run_days_raw.split(",") if isinstance(run_days_raw, str) else run_days_raw,
+            "long_day": plan.get("long_day") or "sat",
+            "hyrox_days": [], "strength_days": [],
+        }
+        new_rows = adapt_engine.replan(plan, today, prefs, fitness)
+        _exec(conn, "DELETE FROM planned_workout WHERE athlete_id=? AND date>=?", (athlete_id, today_s))
+        for r in new_rows:
+            _exec(conn,
+                """INSERT OR IGNORE INTO planned_workout
+                   (athlete_id, date, week_num, run_type, title, distance_km,
+                    target_pace_s, segments, coach_note, day_type)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (athlete_id, r.get("planned_date") or r.get("date"), r.get("week_num"),
+                 r.get("run_type"), r.get("title"), r.get("distance_km"),
+                 r.get("target_pace_s"),
+                 json.dumps(r["segments"]) if isinstance(r.get("segments"), list) else r.get("segments"),
+                 r.get("notes"), r.get("day_type", "run")))
+        try:
+            _exec(conn,
+                "INSERT INTO plan_replan_log (athlete_id, replan_date, reason) VALUES (?,?,?)",
+                (athlete_id, today_s, drift["reason"]))
+        except Exception:
+            pass
+        conn.commit()
+        return {"replanned": True, "reason": drift["reason"], "new_rows": len(new_rows)}
+    finally:
+        if db_module.use_postgres():
+            conn.close()
+
+
+@router.get("/athlete/{athlete_id}/plan/meta")
+def get_plan_meta(athlete_id: str) -> dict:
+    """Plan-metadata inclusief laatste replan."""
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+        try:
+            last = _exec(conn,
+                "SELECT replan_date, reason FROM plan_replan_log WHERE athlete_id=? ORDER BY id DESC LIMIT 1",
+                (athlete_id,)).fetchone()
+        except Exception:
+            last = None
+        plan_row = _exec(conn,
+            "SELECT race_date FROM training_plan WHERE athlete_id=? ORDER BY created_at DESC LIMIT 1",
+            (athlete_id,)).fetchone()
+        return {
+            "last_replan": dict(last) if last else None,
+            "race_date": plan_row["race_date"] if plan_row else None,
+        }
+    finally:
+        if db_module.use_postgres():
+            conn.close()
