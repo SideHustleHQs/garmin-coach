@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { api } from '../api'
+import { api, getDailyNote } from '../api'
 import Card from '../ui/Card'
 import ReadinessHero from '../ui/ReadinessHero'
 import StatTile from '../ui/StatTile'
@@ -12,10 +12,16 @@ import { paceStr, kmStr, sleepStr } from '../format'
 export default function Home({ athleteId, onOpenRun, onNav }) {
   const [d, setD] = useState(null)
   const [err, setErr] = useState(false)
+  const [coachNote, setCoachNote] = useState(null)
 
   useEffect(() => {
     setD(null); setErr(false)
     api.dashboard(athleteId).then(setD).catch(() => setErr(true))
+  }, [athleteId])
+
+  useEffect(() => {
+    if (!athleteId) return
+    getDailyNote(athleteId).then(d => setCoachNote(d.note)).catch(() => {})
   }, [athleteId])
 
   if (err) return <p style={{ color: 'var(--hard)' }}>Kon data niet laden.</p>
@@ -43,7 +49,7 @@ export default function Home({ athleteId, onOpenRun, onNav }) {
         ) : <p style={{ fontSize: 14, color: 'var(--muted)', margin: 0 }}>Geen training gepland vandaag.</p>}
       </Card>
 
-      <ReadinessHero readiness={d.readiness} />
+      <ReadinessHero readiness={{ ...(d.readiness || {}), duiding: coachNote }} />
 
       <SectionHeader color="var(--blue)">Hardlopen</SectionHeader>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>

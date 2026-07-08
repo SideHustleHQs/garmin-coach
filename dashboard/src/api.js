@@ -42,3 +42,25 @@ export async function getPlanMeta(athleteId) {
   if (!r.ok) throw new Error('plan/meta failed')
   return r.json()
 }
+
+export async function getDailyNote(athleteId) {
+  const r = await fetch(`/api/athlete/${athleteId}/coach/daily`, { method: 'POST' })
+  if (!r.ok) throw new Error('coach/daily failed')
+  return r.json()
+}
+
+export async function sendChatMessage(athleteId, message) {
+  const r = await fetch(`/api/athlete/${athleteId}/coach/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  })
+  if (!r.ok) throw new Error('coach/chat failed')
+  return r.json()
+}
+
+export async function getChatHistory(athleteId) {
+  const r = await fetch(`/api/athlete/${athleteId}/coach/history`)
+  if (!r.ok) throw new Error('coach/history failed')
+  return r.json()
+}
