@@ -29,9 +29,9 @@ export default function Home({ athleteId, onOpenRun, onNav }) {
   return (
     <div>
       {/* Training vandaag */}
-      <Card onClick={() => onNav && onNav('schema')} style={{ borderColor: '#3a2418' }}>
+      <Card onClick={() => onNav && onNav('schema')} style={{ borderColor: '#3a2418', borderTop: '3px solid var(--amber)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-          <span style={{ fontSize: 10.5, color: 'var(--accent)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em' }}>
+          <span style={{ fontSize: 10.5, color: 'var(--amber)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em' }}>
             Training vandaag{tw && tw.week_num ? ` · week ${tw.week_num}` : ''}
           </span>
         </div>
@@ -45,7 +45,7 @@ export default function Home({ athleteId, onOpenRun, onNav }) {
 
       <ReadinessHero readiness={d.readiness} />
 
-      <SectionHeader>Hardlopen</SectionHeader>
+      <SectionHeader color="var(--blue)">Hardlopen</SectionHeader>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <StatTile label="VO₂max" value={r.vo2max} trendVals={(r.vo2max_trend || []).map(x => x.vo2max)} trendColor="var(--good)" onClick={() => onNav && onNav('fitness')} />
         <StatTile label="Weekvolume" value={r.weekly_volume && r.weekly_volume.length ? Math.round(r.weekly_volume[r.weekly_volume.length - 1].km) : null} unit="km" onClick={() => onNav && onNav('load')}>
@@ -70,7 +70,7 @@ export default function Home({ athleteId, onOpenRun, onNav }) {
         </Card>
       )}
 
-      <SectionHeader>Gezondheid</SectionHeader>
+      <SectionHeader color="var(--green)">Gezondheid</SectionHeader>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
         <StatTile label="HRV" value={h.hrv} trendVals={(h.hrv_trend || []).map(x => x.hrv)} trendColor="var(--z2)" />
         <StatTile label="Slaap" value={sleepStr(h.sleep && h.sleep.duration_s)}>
