@@ -16,6 +16,15 @@
   --good: var(--green); --good-t: var(--green-t);
   --caution: var(--amber); --hard: var(--red);
   --z1: var(--blue); --z2: var(--green); --z3: #7CC24B; --z4: var(--amber); --z5: var(--red);
+
+  /* Aliassen voor backward-compat */
+  --border: var(--line);
+  --heading: var(--ink);
+  --text: var(--ink);
+  --text-h: var(--ink);
+  --sans: var(--font);
+  --mono: ui-monospace, SFMono-Regular, monospace;
+  --code-bg: var(--card);
 }
 
 /* Lichte modus: behoud leesbaar contrast, gebruik dezelfde categorie-kleuren */
