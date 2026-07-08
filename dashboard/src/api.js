@@ -36,3 +36,9 @@ export const api = {
   registerWorkout: (id, date) => post(`/athlete/${id}/workout/${date}/register`),
   overrideWorkout: (id, date) => post(`/athlete/${id}/workout/${date}/override`),
 }
+
+export async function getPlanMeta(athleteId) {
+  const r = await fetch(`/api/athlete/${athleteId}/plan/meta`)
+  if (!r.ok) throw new Error('plan/meta failed')
+  return r.json()
+}

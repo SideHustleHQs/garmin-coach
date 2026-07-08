@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { api } from '../api'
+import { api, getPlanMeta } from '../api'
 import PlanHeader from '../ui/PlanHeader'
 import WeekStrip from '../ui/WeekStrip'
 import WorkoutCard from '../ui/WorkoutCard'
@@ -16,6 +16,12 @@ export default function Schema({ athleteId }) {
   const [days, setDays] = useState([])
   const [selected, setSelected] = useState(null)
   const [err, setErr] = useState(false)
+  const [planMeta, setPlanMeta] = useState(null)
+
+  useEffect(() => {
+    if (!athleteId) return
+    getPlanMeta(athleteId).then(setPlanMeta).catch(() => {})
+  }, [athleteId])
 
   useEffect(() => {
     setPlan(undefined); setErr(false)
@@ -51,6 +57,16 @@ export default function Schema({ athleteId }) {
   const selectedWorkout = days.find(d => d.date === selected)
   return (
     <div>
+      {planMeta?.last_replan && (
+        <div style={{
+          background: 'var(--amber-t)', border: '1px solid var(--amber)',
+          borderRadius: 10, padding: '8px 12px', marginBottom: 12,
+          fontSize: 12, color: 'var(--amber)',
+        }}>
+          ↻ Plan herberekend op {planMeta.last_replan.replan_date}
+          {planMeta.last_replan.reason ? ` · ${planMeta.last_replan.reason}` : ''}
+        </div>
+      )}
       <PlanHeader plan={plan} currentWeek={week} />
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 2px 8px' }}>
         <button onClick={() => setWeek(w => Math.max(1, w - 1))} disabled={week <= 1}
