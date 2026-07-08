@@ -11,6 +11,7 @@ import coach_rules
 import db as db_module
 import metrics
 import plan_engine
+from api import ai_coach as _ai_coach
 
 router = APIRouter(prefix="/api")
 
@@ -936,3 +937,105 @@ def get_plan_meta(athlete_id: str) -> dict:
     finally:
         if db_module.use_postgres():
             conn.close()
+
+
+def _build_coach_context(conn, athlete_id: str) -> dict:
+    """Bouw context-dict voor AI coach vanuit DB."""
+    import datetime as _dtc
+    athlete = _exec(conn, "SELECT display_name FROM athletes WHERE id=?", (athlete_id,)).fetchone()
+    readiness = _exec(conn,
+        "SELECT score FROM training_readiness WHERE athlete_id=? ORDER BY date DESC LIMIT 1",
+        (athlete_id,)).fetchone()
+    hrv_row = _exec(conn,
+        "SELECT last_night_avg FROM hrv WHERE athlete_id=? ORDER BY date DESC LIMIT 1",
+        (athlete_id,)).fetchone()
+    sleep_row = _exec(conn,
+        "SELECT duration_s, score FROM sleep WHERE athlete_id=? ORDER BY date DESC LIMIT 1",
+        (athlete_id,)).fetchone()
+    bb_row = _exec(conn,
+        "SELECT charged FROM body_battery WHERE athlete_id=? ORDER BY date DESC LIMIT 1",
+        (athlete_id,)).fetchone()
+    load_row = None
+    try:
+        load_row = _exec(conn,
+            "SELECT acwr FROM training_load_balance WHERE athlete_id=? ORDER BY date DESC LIMIT 1",
+            (athlete_id,)).fetchone()
+    except Exception:
+        pass
+    today_s = str(_dtc.date.today())
+    today_wo = None
+    try:
+        today_wo = _exec(conn,
+            "SELECT COALESCE(adjusted_title, title) as title, "
+            "COALESCE(adjusted_run_type, run_type) as run_type "
+            "FROM planned_workout WHERE athlete_id=? AND date=? LIMIT 1",
+            (athlete_id, today_s)).fetchone()
+    except Exception:
+        pass
+    return {
+        "athlete_name": athlete["display_name"] if athlete else athlete_id,
+        "readiness": readiness["score"] if readiness else None,
+        "hrv": hrv_row["last_night_avg"] if hrv_row else None,
+        "sleep_s": sleep_row["duration_s"] if sleep_row else None,
+        "sleep_score": sleep_row["score"] if sleep_row else None,
+        "body_battery": bb_row["charged"] if bb_row else None,
+        "acwr": load_row["acwr"] if load_row else None,
+        "training_today": dict(today_wo) if today_wo else None,
+    }
+
+
+@router.post("/athlete/{athlete_id}/coach/daily")
+def get_coach_daily(athlete_id: str) -> dict:
+    """Dagelijkse 1-2 zinnen coaching-note via Claude Haiku."""
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+        ctx = _build_coach_context(conn, athlete_id)
+    finally:
+        if db_module.use_postgres():
+            conn.close()
+    note = _ai_coach.daily_note(ctx)
+    return {"note": note}
+
+
+@router.post("/athlete/{athlete_id}/coach/chat")
+def post_coach_chat(athlete_id: str, body: dict) -> dict:
+    """Chat met de AI coach via Claude Sonnet."""
+    message = (body.get("message") or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="message is vereist")
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+        ctx = _build_coach_context(conn, athlete_id)
+        rows = _exec(conn,
+            "SELECT role, content FROM coach_chat WHERE athlete_id=? ORDER BY id DESC LIMIT 20",
+            (athlete_id,)).fetchall()
+        history = [{"role": r["role"], "content": r["content"]} for r in reversed(rows)]
+        history.append({"role": "user", "content": message})
+        reply = _ai_coach.chat(history, ctx)
+        _exec(conn, "INSERT INTO coach_chat (athlete_id, role, content) VALUES (?,?,?)",
+              (athlete_id, "user", message))
+        _exec(conn, "INSERT INTO coach_chat (athlete_id, role, content) VALUES (?,?,?)",
+              (athlete_id, "assistant", reply))
+        conn.commit()
+    finally:
+        if db_module.use_postgres():
+            conn.close()
+    return {"reply": reply}
+
+
+@router.get("/athlete/{athlete_id}/coach/history")
+def get_coach_history(athlete_id: str, limit: int = 40) -> list:
+    """Chat-geschiedenis ophalen."""
+    conn = _conn()
+    try:
+        _athlete_or_404(conn, athlete_id)
+        rows = _exec(conn,
+            "SELECT role, content, created_at FROM coach_chat WHERE athlete_id=? ORDER BY id DESC LIMIT ?",
+            (athlete_id, limit)).fetchall()
+    finally:
+        if db_module.use_postgres():
+            conn.close()
+    return [{"role": r["role"], "content": r["content"], "created_at": r["created_at"]}
+            for r in reversed(rows)]

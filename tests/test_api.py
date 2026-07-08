@@ -340,3 +340,37 @@ def test_plan_meta_returns_last_replan(client=None, default_athlete=None):
     data = resp.json()
     assert "last_replan" in data  # None of datum-dict
     assert "race_date" in data
+
+
+# --- Fase4: AI coach endpoints ---
+from unittest.mock import patch, MagicMock
+
+def _mock_anthropic(text="Test coaching note."):
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value.content = [MagicMock(text=text)]
+    return mock_client
+
+def test_coach_daily_returns_note():
+    with patch("api.ai_coach._client", _mock_anthropic()):
+        resp = client.post("/api/athlete/vriendin/coach/daily")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "note" in data
+    assert isinstance(data["note"], str)
+
+def test_coach_chat_returns_reply():
+    with patch("api.ai_coach._client", _mock_anthropic("Je VO2max is goed.")):
+        resp = client.post("/api/athlete/vriendin/coach/chat",
+                           json={"message": "Hoe ver ben ik van sub-4?"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "reply" in data
+
+def test_coach_chat_missing_message_returns_400():
+    resp = client.post("/api/athlete/vriendin/coach/chat", json={})
+    assert resp.status_code == 400
+
+def test_coach_history_returns_list():
+    resp = client.get("/api/athlete/vriendin/coach/history")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
