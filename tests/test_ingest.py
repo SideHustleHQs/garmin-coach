@@ -29,6 +29,7 @@ def test_schema_creates_all_tables():
         "training_load_balance", "activity_splits",
         "hrv", "sleep",
         "athlete_training_prefs", "training_plan", "planned_workout",
+        "plan_replan_log",
     }
     p.unlink()
 

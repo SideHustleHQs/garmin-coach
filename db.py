@@ -101,6 +101,13 @@ CREATE TABLE IF NOT EXISTS planned_workout (
     PRIMARY KEY (athlete_id, date),
     FOREIGN KEY (athlete_id) REFERENCES athletes(id)
 );
+CREATE TABLE IF NOT EXISTS plan_replan_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    athlete_id TEXT NOT NULL,
+    replan_date TEXT NOT NULL,
+    reason TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 SCHEMA_PG = """
@@ -187,6 +194,13 @@ CREATE TABLE IF NOT EXISTS planned_workout (
     is_adjusted INTEGER DEFAULT 0, user_override INTEGER DEFAULT 0, missed INTEGER DEFAULT 0,
     PRIMARY KEY (athlete_id, date)
 );
+CREATE TABLE IF NOT EXISTS plan_replan_log (
+    id SERIAL PRIMARY KEY,
+    athlete_id TEXT NOT NULL,
+    replan_date TEXT NOT NULL,
+    reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
 """
 
 ACTIVITY_NEW_COLUMNS = [
@@ -261,6 +275,7 @@ def _init_sqlite(path: Path) -> None:
     _migrate_activities(path)
     _migrate_body_battery(path)
     _migrate_planned_workout(path)
+    _migrate_replan_log(path)
 
 
 def _migrate_activities(path: Path) -> None:
@@ -288,3 +303,15 @@ def _migrate_planned_workout(path: Path) -> None:
             if col not in cols:
                 conn.execute(f"ALTER TABLE planned_workout ADD COLUMN {col} {ctype}")
         conn.commit()
+
+
+def _migrate_replan_log(path: Path) -> None:
+    with get_conn(path) as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS plan_replan_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, athlete_id TEXT NOT NULL,
+            replan_date TEXT NOT NULL, reason TEXT,
+            created_at TEXT DEFAULT (datetime('now')))""")
+        conn.commit()
+
+
+migrate_db = init_db
