@@ -33,11 +33,11 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <div style={{ padding: '18px 16px 12px', borderBottom: '1px solid var(--line)' }}>
+      <div style={{ padding: '18px 16px 12px', background: 'var(--card)', borderBottom: '1px solid var(--line)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 600 }}>Hoi, {athlete.display_name}</h1>
-            <p style={{ fontSize: 12, color: 'var(--faint)', marginTop: 2 }}>marathon-coach</p>
+            <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-.02em' }}>Hoi, {athlete.display_name}</h1>
+            <p style={{ fontSize: 11, color: 'var(--faint)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '.06em' }}>marathon-coach</p>
           </div>
           <CountdownChip weeks={null} label="wk tot race" />
         </div>
