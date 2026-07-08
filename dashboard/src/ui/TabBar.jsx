@@ -1,4 +1,4 @@
-const TABS = [['home', 'Vandaag'], ['runs', 'Runs'], ['schema', 'Schema'], ['delen', 'Delen']]
+const TABS = [['home', 'Vandaag'], ['runs', 'Runs'], ['schema', 'Schema'], ['coach', '🤖'], ['delen', 'Delen']]
 export default function TabBar({ current, onNav }) {
   const active = ['run', 'fitness', 'load'].includes(current) ? 'home' : current
   return (

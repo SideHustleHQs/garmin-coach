@@ -11,6 +11,7 @@ import LoadDetail from './screens/LoadDetail'
 import RunsList from './screens/RunsList'
 import Schema from './screens/Schema'
 import Delen from './screens/Delen'
+import Coach from './screens/Coach'
 
 export default function App() {
   const [athletes, setAthletes] = useState([])
@@ -52,6 +53,7 @@ export default function App() {
         {screen === 'runs' && <RunsList athleteId={athleteId} onOpenRun={openRun} />}
         {screen === 'schema' && <Schema athleteId={athleteId} />}
         {screen === 'delen' && <Delen athlete={athlete} />}
+        {screen === 'coach' && <Coach athleteId={athleteId} />}
       </div>
 
       <TabBar current={screen} onNav={nav} />
