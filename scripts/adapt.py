@@ -14,6 +14,81 @@ import plan_engine
 ATHLETES = ["rowan", "vriendin"]
 
 
+def _run_drift_and_replan(conn, athlete_id: str, today) -> None:
+    """Controleer drift; herplan indien nodig."""
+    import datetime as _dt2
+    from adapt_engine import check_drift, replan as do_replan
+
+    today_s = str(today)
+
+    rows = [dict(r) for r in conn.execute(
+        "SELECT planned_date, run_type, missed, linked_activity_id FROM planned_workout "
+        "WHERE athlete_id=? ORDER BY planned_date", (athlete_id,)).fetchall()]
+    if not rows:
+        return
+
+    # ACWR-historie laatste 14 dagen
+    cutoff = str(today - _dt2.timedelta(days=14))
+    try:
+        acwr_rows = conn.execute(
+            "SELECT acwr FROM training_load WHERE athlete_id=? AND date>=? ORDER BY date",
+            (athlete_id, cutoff)).fetchall()
+        acwr_hist = [r["acwr"] for r in acwr_rows if r["acwr"] is not None]
+    except Exception:
+        acwr_hist = []
+
+    drift = check_drift(rows, today, {"acwr_history": acwr_hist})
+    if not drift["drift"]:
+        print(f"[adapt] {athlete_id}: geen drift.")
+        return
+
+    print(f"[adapt] {athlete_id}: drift — {drift['reason']}")
+
+    plan_row = conn.execute(
+        "SELECT * FROM training_plan WHERE athlete_id=? ORDER BY created_at DESC LIMIT 1",
+        (athlete_id,)).fetchone()
+    if not plan_row:
+        print(f"[adapt] {athlete_id}: geen plan gevonden, overslaan.")
+        return
+    plan = dict(plan_row)
+
+    fitness_row = conn.execute(
+        "SELECT easy_pace_s, vo2max FROM athlete_metrics WHERE athlete_id=? ORDER BY date DESC LIMIT 1",
+        (athlete_id,)).fetchone()
+    fitness = {"easy_pace_s": fitness_row["easy_pace_s"] if fitness_row else None,
+               "vo2max": fitness_row["vo2max"] if fitness_row else None}
+
+    run_days_raw = plan.get("run_days") or "mon,wed,fri,sat"
+    prefs = {
+        "run_days": run_days_raw.split(",") if isinstance(run_days_raw, str) else run_days_raw,
+        "long_day": plan.get("long_day") or "sat",
+        "hyrox_days": [],
+        "strength_days": [],
+    }
+
+    new_rows = do_replan(plan, today, prefs, fitness)
+    conn.execute("DELETE FROM planned_workout WHERE athlete_id=? AND planned_date>=?",
+                 (athlete_id, today_s))
+    for r in new_rows:
+        conn.execute(
+            """INSERT OR IGNORE INTO planned_workout
+               (athlete_id, planned_date, week_num, run_type, title, distance_km,
+                target_pace_s, segments, notes, run_day_of_week)
+               VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (athlete_id, r.get("planned_date"), r.get("week_num"), r.get("run_type"),
+             r.get("title"), r.get("distance_km"), r.get("target_pace_s"),
+             __import__("json").dumps(r["segments"]) if isinstance(r.get("segments"), list) else r.get("segments"),
+             r.get("notes"), r.get("run_day_of_week")))
+    try:
+        conn.execute(
+            "INSERT INTO plan_replan_log (athlete_id, replan_date, reason) VALUES (?,?,?)",
+            (athlete_id, today_s, drift["reason"]))
+    except Exception:
+        pass  # tabel nog niet gemigreerd op oude DBs
+    conn.commit()
+    print(f"[adapt] {athlete_id}: replan gedaan, {len(new_rows)} rijen weggeschreven.")
+
+
 def _fitness(conn, athlete_id: str) -> dict:
     rows = conn.execute(
         """SELECT distance_m, duration_s FROM activities
@@ -71,6 +146,7 @@ def main():
         n = adapt_athlete(conn, athlete_id)
         conn.commit()
         print(f"{athlete_id}: {n} dagen aangepast")
+        _run_drift_and_replan(conn, athlete_id, _dt.date.today())
 
 
 if __name__ == "__main__":
