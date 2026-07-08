@@ -57,3 +57,67 @@ def test_absorb_missed_marks_and_reschedules():
 
 def test_absorb_missed_empty():
     assert absorb_missed([], today="2026-07-17") == []
+
+# --- Fase 3 Plan 2: check_drift + replan ---
+from adapt_engine import check_drift, replan
+import datetime as _dt2
+
+def _row(date_str, run_type, missed=0, linked_activity_id=None):
+    return {"planned_date": date_str, "run_type": run_type,
+            "missed": missed, "linked_activity_id": linked_activity_id,
+            "target_pace_s": 300, "distance_km": 10}
+
+def test_check_drift_missed_quality():
+    today = _dt2.date(2026, 7, 8)
+    rows = [
+        _row("2026-07-01", "quality", missed=1),
+        _row("2026-07-04", "long", missed=1),
+        _row("2026-07-08", "easy"),
+        _row("2026-07-10", "quality"),
+    ]
+    result = check_drift(rows, today, signals={})
+    assert result["drift"] is True
+    assert "gemist" in result["reason"].lower() or "missed" in result["reason"].lower()
+
+def test_check_drift_no_drift():
+    today = _dt2.date(2026, 7, 8)
+    rows = [
+        _row("2026-07-01", "quality", missed=0, linked_activity_id=999),
+        _row("2026-07-04", "long", missed=0, linked_activity_id=998),
+        _row("2026-07-08", "easy"),
+    ]
+    result = check_drift(rows, today, signals={})
+    assert result["drift"] is False
+
+def test_check_drift_chronic_acwr():
+    today = _dt2.date(2026, 7, 8)
+    rows = [_row(f"2026-07-{d:02d}", "easy") for d in range(1, 9)]
+    signals = {"acwr_history": [1.6] * 5}
+    result = check_drift(rows, today, signals=signals)
+    assert result["drift"] is True
+
+def test_replan_returns_future_rows_only():
+    today = _dt2.date(2026, 7, 8)
+    from plan_engine import generate_plan
+    plan = {"athlete_id": "rowan", "race_date": "2026-10-18",
+            "goal_time_s": 14400, "distance_km": 42.195}
+    prefs = {"run_days": ["mon", "wed", "fri", "sat"], "long_day": "sat",
+             "hyrox_days": [], "strength_days": []}
+    fitness = {"easy_pace_s": 330, "vo2max": 52}
+    new_rows = replan(plan, today, prefs, fitness)
+    assert all(r["planned_date"] >= str(today) for r in new_rows)
+    assert len(new_rows) > 0
+
+def test_replan_taper_no_quality():
+    import datetime as dt3
+    today = dt3.date(2026, 7, 8)
+    race_date = dt3.date(2026, 10, 18)
+    plan = {"athlete_id": "rowan", "race_date": str(race_date),
+            "goal_time_s": 14400, "distance_km": 42.195}
+    prefs = {"run_days": ["mon", "wed", "fri", "sat"], "long_day": "sat",
+             "hyrox_days": [], "strength_days": []}
+    fitness = {"easy_pace_s": 330, "vo2max": 52}
+    new_rows = replan(plan, today, prefs, fitness)
+    taper_start = str(race_date - dt3.timedelta(weeks=2))
+    taper_quality = [r for r in new_rows if r["planned_date"] >= taper_start and r.get("run_type") == "quality"]
+    assert len(taper_quality) == 0, f"Quality in taper: {taper_quality}"

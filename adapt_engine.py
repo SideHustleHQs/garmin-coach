@@ -64,6 +64,82 @@ def adjust_day(workout: dict, signals: dict, paces: dict) -> dict | None:
     return None
 
 
+import datetime as _dt
+
+
+def check_drift(rows: list, today, signals: dict) -> dict:
+    """Detecteer structureel afdwalen. Pure functie.
+    Returns {"drift": bool, "reason": str | None}"""
+    if isinstance(today, str):
+        today = _dt.date.fromisoformat(today)
+    today_s = str(today)
+    cutoff = str(today - _dt.timedelta(days=14))
+
+    # Trigger 1: ≥2 gemiste kwaliteits/lange runs in 14 dagen
+    missed_quality = [
+        r for r in rows
+        if r.get("planned_date", "") >= cutoff
+        and r.get("planned_date", "") < today_s
+        and r.get("run_type") in ("quality", "long")
+        and (r.get("missed") or not r.get("linked_activity_id"))
+    ]
+    if len(missed_quality) >= 2:
+        return {"drift": True,
+                "reason": f"{len(missed_quality)} kwaliteits/lange runs gemist — plan herberekend."}
+
+    # Trigger 2: ACWR ≥ 1.5 gedurende ≥5 dagen
+    acwr_hist = signals.get("acwr_history", [])
+    high_acwr_days = sum(1 for v in acwr_hist if v is not None and v >= 1.5)
+    if high_acwr_days >= 5:
+        return {"drift": True,
+                "reason": f"Chronisch hoge belasting ({high_acwr_days} dagen ACWR≥1.5) — plan herberekend."}
+
+    return {"drift": False, "reason": None}
+
+
+def replan(plan: dict, today, prefs: dict, fitness: dict) -> list:
+    """Herbereken de resterende weken via plan_engine.generate_plan.
+    Geeft alleen toekomstige/vandaag rijen terug."""
+    from plan_engine import generate_plan
+    if isinstance(today, str):
+        today = _dt.date.fromisoformat(today)
+    today_s = str(today)
+    # Bereken weeks uit race_date als dat ontbreekt
+    plan = dict(plan)
+    if "weeks" not in plan and "race_date" in plan:
+        race = _dt.date.fromisoformat(plan["race_date"])
+        plan["weeks"] = max(1, (race - today).days // 7)
+    # Alias distance_km -> race_distance_km indien nodig
+    if "race_distance_km" not in plan and "distance_km" in plan:
+        plan["race_distance_km"] = plan["distance_km"]
+    # start_date = vandaag indien niet meegegeven
+    if "start_date" not in plan:
+        plan["start_date"] = today_s
+    # fixed_days default leeg indien niet meegegeven
+    prefs = dict(prefs)
+    if "fixed_days" not in prefs:
+        prefs["fixed_days"] = {}
+    new_rows = generate_plan(plan, prefs, fitness)
+    # Bepaal taper-start (2 weken voor race)
+    race_d = _dt.date.fromisoformat(plan["race_date"])
+    taper_start_s = str(race_d - _dt.timedelta(weeks=2))
+    # generate_plan gebruikt "date"; normaliseer naar "planned_date" voor consistentie
+    result = []
+    for r in new_rows:
+        row = dict(r)
+        date_val = row.get("planned_date") or row.get("date", "")
+        row["planned_date"] = date_val
+        if date_val < today_s:
+            continue
+        # Taper-regel: geen quality-runs in laatste 2 weken
+        if date_val >= taper_start_s and row.get("run_type") == "quality":
+            row = dict(row)
+            row["run_type"] = "easy"
+            row["title"] = "Rustige duurloop (taper)"
+        result.append(row)
+    return result
+
+
 def absorb_missed(rows: list[dict], today: str) -> list[dict]:
     """Markeer verleden run-dagen zonder afgeronde activity als missed.
     (Herplanning/verschuiven van gemiste sessies gebeurt in Plan 2 — hier alleen markeren.)"""
