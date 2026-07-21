@@ -4,10 +4,12 @@ from __future__ import annotations
 from datetime import date as _date
 
 
-def pace_at_hr(runs: list[dict], hr_min: int = 145, hr_max: int = 155) -> list[dict]:
-    """Aerobe efficiëntie: pace (s/km) van runs met gemiddelde HR in de band.
+def pace_at_hr(runs: list[dict], hr_min: int = 140, hr_max: int = 160) -> list[dict]:
+    """Aerobe efficiëntie: pace (s/km) van runs met gemiddelde HR in de band (~150bpm ±10).
 
     runs: dicts met date, distance_m, duration_s, avg_hr. Gesorteerd op date oplopend.
+    Band is bewust 20bpm breed: atleten met een hogere easy-HR (bv. ~160) vallen
+    anders volledig buiten de boot en krijgen een leeg tempo-cijfer.
     """
     out = []
     for r in runs:
