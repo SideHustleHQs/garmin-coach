@@ -9,3 +9,6 @@ logs/
 garmin_coach.db
 garmin_coach.db-shm
 garmin_coach.db-wal
+
+# Superpowers tooling state
+.superpowers/

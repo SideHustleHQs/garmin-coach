@@ -58,8 +58,13 @@ else
   log "SKIP push: DATABASE_URL leeg (data blijft in lokale SQLite)."
 fi
 
+# Dagelijkse bijsturing: roep het LIVE /adapt-endpoint aan (dat leest+schrijft Supabase,
+# waar het plan leeft). adapt.py schrijft alleen lokale SQLite en is dus een dev-tool.
 if [[ -n "${DATABASE_URL:-}" ]]; then
-  log "ADAPT (dagelijkse bijsturing)..."
-  "$PY" scripts/adapt.py >>"$LOG" 2>&1 && log "OK adapt" || log "FOUT adapt (zie log)"
+  log "ADAPT (dagelijkse bijsturing via live endpoint)..."
+  BASE="https://garmin-coach-phi.vercel.app"
+  for ath in vriendin rowan; do
+    curl -s -m 40 -X POST "$BASE/api/athlete/$ath/adapt" >>"$LOG" 2>&1 && log "OK adapt $ath" || log "FOUT adapt $ath (zie log)"
+  done
 fi
 log "=== sync klaar ==="
